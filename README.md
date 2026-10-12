@@ -1,6 +1,6 @@
 # Charlottesville Amtrak Performance
 
-Tracks how late Amtrak trains run at Charlottesville (CVS). A GitHub Actions job collects reported arrival and departure times twice a day for every train that stops at CVS. The times come from [Amtrak Status Maps](https://asm.transitdocs.com) and are stored as CSV under `data/`. A static dashboard summarizes delays between CVS and any other station on those trains, such as Washington, New York, Lynchburg, or Atlanta. You can filter by train, weekday or weekend, day of week, departure time, and date range.
+Tracks how late Amtrak trains run at Charlottesville (CVS). A GitHub Actions job collects reported arrival and departure times twice a day for every train that stops at CVS. The times come from [Amtrak Status Maps](https://asm.transitdocs.com) and are stored as CSV under `data/`. A static dashboard summarizes delays between CVS and any other station on those trains, such as Washington, New York, Lynchburg, or Atlanta. You can filter by train, weekday or weekend, day of week, departure time, and date range. A "Plan a trip" panel predicts, for any future date and route, how likely each train that day is to arrive on time.
 
 ## Running it
 
@@ -10,6 +10,7 @@ python -m collector update                          # fetch the last 4 days
 python -m collector backfill --start 2024-01-01 --end 2024-12-31
 python -m collector site --out _site                # build the dashboard + data
 python -m http.server -d _site                      # view at http://localhost:8000
+python -m collector backtest                        # check the trip planner's accuracy on recent trips
 ```
 
 ## Workflows

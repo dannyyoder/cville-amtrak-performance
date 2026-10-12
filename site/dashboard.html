@@ -150,6 +150,26 @@ td .trn { font: 600 15px var(--font-data); }
 .pill::before { content: ""; width: 8px; height: 8px; border-radius: 50%; background: currentColor; }
 .ok { color: var(--good-ink); } .mid { color: var(--warn-ink); } .low { color: var(--bad-ink); }
 .empty { padding: 28px 8px; color: var(--muted); text-align: center; }
+
+/* Trip planner: one row per train expected on the chosen day. */
+.plan-controls { display: flex; flex-wrap: wrap; gap: 14px 22px; align-items: flex-end; }
+.plan-list { display: grid; gap: 8px; }
+.trip { display: grid; grid-template-columns: minmax(150px, 1.1fr) minmax(170px, 1fr) minmax(210px, 1.4fr); gap: 10px 20px; align-items: center; padding: 12px 14px; border: 1px solid var(--line); border-radius: var(--r); background: var(--bg); }
+.trip.best { border-color: var(--accent); box-shadow: inset 3px 0 0 var(--accent); }
+@media (max-width: 760px) { .trip { grid-template-columns: 1fr; } }
+.trip-id { display: grid; gap: 2px; min-width: 0; }
+.trip-id .trn { font: 600 17px var(--font-data); }
+.trip-id .nm { color: var(--ink-2); font-size: 13px; }
+.trip-id .tm { font: 13px var(--font-data); color: var(--ink-2); }
+.badge { font: 600 10px/1 var(--font-display); letter-spacing: 0.08em; text-transform: uppercase; color: var(--accent); border: 1px solid var(--accent); border-radius: 999px; padding: 3px 7px; margin-left: 6px; vertical-align: 2px; }
+.odds { display: grid; gap: 5px; }
+.odds .big { font: 600 1.7rem/1 var(--font-display); }
+.odds .big small { font: 500 12px var(--font-body); color: var(--ink-2); margin-left: 6px; }
+.meter { height: 6px; border-radius: 3px; background: var(--grid); overflow: hidden; }
+.meter > span { display: block; height: 100%; border-radius: 3px; background: currentColor; }
+.trip-detail { font-size: 13px; color: var(--ink-2); display: grid; gap: 3px; min-width: 0; }
+.trip-detail b { color: var(--ink); font-weight: 600; font-variant-numeric: tabular-nums; }
+.trip-why { grid-column: 1 / -1; font-size: 12px; color: var(--muted); border-top: 1px solid var(--grid); padding-top: 8px; }
 .note { color: var(--muted); font-size: 13px; max-width: 75ch; }
 .loading { opacity: 0.5; transition: opacity 0.15s; }
 @media (prefers-reduced-motion: reduce) { .loading { transition: none; } }
@@ -163,6 +183,29 @@ td .trn { font: 600 15px var(--font-data); }
     </div>
     <span class="stamp" id="stamp"></span>
   </header>
+
+  <section class="card" id="plan" aria-labelledby="planTitle">
+    <div class="card-head">
+      <div><h2 id="planTitle">Plan a trip</h2><p class="sub">Pick a travel date and route to see how each train is likely to run that day.</p></div>
+    </div>
+    <div class="plan-controls">
+      <div class="f picker" id="planDateWrap">
+        <span class="lbl">Travel date</span>
+        <button type="button" class="range-btn" id="planDateBtn" aria-haspopup="dialog" aria-expanded="false" aria-controls="planCal"></button>
+        <div class="cal" id="planCal" role="dialog" aria-label="Choose a travel date" hidden></div>
+      </div>
+      <div class="f">
+        <span class="lbl">Direction</span>
+        <div class="seg" id="planDir"></div>
+      </div>
+      <div class="f">
+        <label for="planStation">Other station</label>
+        <select id="planStation"></select>
+      </div>
+    </div>
+    <div id="planOut" aria-live="polite"></div>
+    <p class="note" id="planNote"></p>
+  </section>
 
   <section class="filters" aria-label="Filters">
     <div class="filters-top">
@@ -838,6 +881,7 @@ td .trn { font: 600 15px var(--font-data); }
   }
   async function afterReset(focusSel, resetStation) {
     for (const id of ["range", "measure", "thr"]) $(id).value = String(state[id]);
+    if (planCal) renderPlan();
     closeCal(false);
     syncCustom();
     if (resetStation && state.station !== DEFAULT_STATION) {
@@ -876,146 +920,163 @@ td .trn { font: 600 15px var(--font-data); }
   };
   const fmtDate = s => parseISO(s).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric", timeZone: "UTC" });
   const longDate = s => parseISO(s).toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric", year: "numeric", timeZone: "UTC" });
-  const cal = { y: 0, m: 0, pending: null, hover: null, focus: null };
-
-  function syncCustom() {
-    $("customRange").hidden = state.range !== "custom";
-    const btn = $("rangeBtn");
+  const calIcon = () => {
     const icon = svgEl("svg", { width: 16, height: 16, viewBox: "0 0 16 16", "aria-hidden": "true" });
     icon.append(svgEl("rect", { x: 1.5, y: 2.5, width: 13, height: 12, rx: 2, fill: "none", stroke: "currentColor", "stroke-width": 1.4 }),
       svgEl("line", { x1: 1.5, x2: 14.5, y1: 6, y2: 6, stroke: "currentColor", "stroke-width": 1.4 }),
       svgEl("line", { x1: 5, x2: 5, y1: 1, y2: 4, stroke: "currentColor", "stroke-width": 1.4, "stroke-linecap": "round" }),
       svgEl("line", { x1: 11, x2: 11, y1: 1, y2: 4, stroke: "currentColor", "stroke-width": 1.4, "stroke-linecap": "round" }));
-    btn.replaceChildren(icon, document.createTextNode(state.from && state.to ? `${fmtDate(state.from)} – ${fmtDate(state.to)}` : "Choose dates"));
-  }
-  const calOpen = () => !$("cal").hidden;
-  function openCal() {
-    const c = $("cal"), btn = $("rangeBtn");
-    const anchor = state.to || index.last_date;
-    cal.y = +anchor.slice(0, 4); cal.m = +anchor.slice(5, 7) - 1;
-    cal.pending = null; cal.hover = null; cal.focus = anchor;
-    c.hidden = false; c.style.left = "0px";
-    btn.setAttribute("aria-expanded", "true");
-    renderCal();
-    const r = c.getBoundingClientRect();                     // keep the popover on screen
-    if (r.right > window.innerWidth - 8) c.style.left = `${Math.min(0, window.innerWidth - 8 - r.right)}px`;
-    focusDay();
-  }
-  function closeCal(returnFocus) {
-    $("cal").hidden = true;
-    $("rangeBtn").setAttribute("aria-expanded", "false");
-    if (returnFocus) $("rangeBtn").focus();
-  }
-  function shownRange() {
-    if (cal.pending) {
-      const other = cal.hover || cal.pending;
-      return cal.pending < other ? [cal.pending, other] : [other, cal.pending];
-    }
-    return [state.from, state.to];
-  }
-  function shadeDays() {
-    const [a, b] = shownRange();
-    for (const d of $("cal").querySelectorAll(".day[data-d]")) {
-      const v = d.dataset.d;
-      d.classList.toggle("start", v === a);
-      d.classList.toggle("end", v === b);
-      d.classList.toggle("in", !!a && !!b && v > a && v < b);
-      d.setAttribute("aria-pressed", String(v === a || v === b));
-    }
-    $("calHint").textContent = cal.pending
-      ? `${fmtDate(cal.pending)} – pick an end date`
-      : "Pick a start date";
-  }
-  function focusDay() {
-    $("cal").querySelector(`.day[data-d="${cal.focus}"]`)?.focus();
-  }
-  function renderCal() {
-    const first = index.first_date, last = index.last_date;
-    const fy = +first.slice(0, 4), ly = +last.slice(0, 4);
-    const fm = fy * 12 + (+first.slice(5, 7) - 1), lm = ly * 12 + (+last.slice(5, 7) - 1);
-    const cur = Math.min(lm, Math.max(fm, cal.y * 12 + cal.m));
-    cal.y = Math.floor(cur / 12); cal.m = cur % 12;
+    return icon;
+  };
 
-    const head = el("div", { class: "cal-head" });
-    const prev = el("button", { type: "button", class: "cal-nav", "aria-label": "Previous month" }, "‹");
-    const next = el("button", { type: "button", class: "cal-nav", "aria-label": "Next month" }, "›");
-    prev.disabled = cur <= fm; next.disabled = cur >= lm;
-    prev.addEventListener("click", () => { cal.m--; if (cal.m < 0) { cal.m = 11; cal.y--; } renderCal(); });
-    next.addEventListener("click", () => { cal.m++; if (cal.m > 11) { cal.m = 0; cal.y++; } renderCal(); });
-    const mSel = el("select", { class: "cal-month", "aria-label": "Month" });
-    MONTHS.forEach((name, i) => { const o = el("option", { value: i }, name); o.disabled = cal.y * 12 + i < fm || cal.y * 12 + i > lm; mSel.append(o); });
-    mSel.value = String(cal.m);
-    mSel.addEventListener("change", () => { cal.m = +mSel.value; renderCal(); mSel.focus(); });
-    const ySel = el("select", { "aria-label": "Year" });
-    for (let y = fy; y <= ly; y++) ySel.append(el("option", { value: y }, String(y)));
-    ySel.value = String(cal.y);
-    ySel.addEventListener("change", () => { cal.y = +ySel.value; renderCal(); $("cal").querySelector('select[aria-label="Year"]').focus(); });
-    head.append(prev, mSel, ySel, next);
+  // A calendar popover attached to a button. mode "range": first click sets the start,
+  // second the end (either order). mode "single": one click picks the day.
+  // bounds() -> [min, max] ISO dates; value() -> [a, b]; onPick(a, b) applies the choice.
+  function makeCalendar({ pop, btn, wrap, mode, bounds, value, onPick }) {
+    const cal = { y: 0, m: 0, pending: null, hover: null, focus: null };
+    const isOpen = () => !pop.hidden;
+    function open() {
+      const [lo, hi] = bounds();
+      const v = value()[1] || value()[0];
+      const anchor = v && v >= lo && v <= hi ? v : (mode === "single" ? lo : hi);
+      cal.y = +anchor.slice(0, 4); cal.m = +anchor.slice(5, 7) - 1;
+      cal.pending = null; cal.hover = null; cal.focus = anchor;
+      pop.hidden = false; pop.style.left = "0px";
+      btn.setAttribute("aria-expanded", "true");
+      render();
+      const r = pop.getBoundingClientRect();                   // keep the popover on screen
+      if (r.right > window.innerWidth - 8) pop.style.left = `${Math.min(0, window.innerWidth - 8 - r.right)}px`;
+      focusDay();
+    }
+    function close(returnFocus) {
+      if (pop.hidden) return;
+      pop.hidden = true;
+      btn.setAttribute("aria-expanded", "false");
+      if (returnFocus) btn.focus();
+    }
+    function shown() {
+      if (cal.pending) {
+        const other = cal.hover || cal.pending;
+        return cal.pending < other ? [cal.pending, other] : [other, cal.pending];
+      }
+      const [a, b] = value();
+      return mode === "single" ? [a, a] : [a, b];
+    }
+    function shade() {
+      const [a, b] = shown();
+      for (const d of pop.querySelectorAll(".day[data-d]")) {
+        const v = d.dataset.d;
+        d.classList.toggle("start", v === a);
+        d.classList.toggle("end", v === b);
+        d.classList.toggle("in", !!a && !!b && v > a && v < b);
+        d.setAttribute("aria-pressed", String(v === a || v === b));
+      }
+      pop.querySelector(".cal-hint").textContent = mode === "single" ? "Pick a date"
+        : cal.pending ? `${fmtDate(cal.pending)} – pick an end date` : "Pick a start date";
+    }
+    const focusDay = () => pop.querySelector(`.day[data-d="${cal.focus}"]`)?.focus();
+    function render() {
+      const [first, last] = bounds();
+      const fy = +first.slice(0, 4), ly = +last.slice(0, 4);
+      const fm = fy * 12 + (+first.slice(5, 7) - 1), lm = ly * 12 + (+last.slice(5, 7) - 1);
+      const cur = Math.min(lm, Math.max(fm, cal.y * 12 + cal.m));
+      cal.y = Math.floor(cur / 12); cal.m = cur % 12;
 
-    const grid = el("div", { class: "cal-grid", role: "group", "aria-label": `${MONTHS[cal.m]} ${cal.y}` });
-    for (const d of ["Su", "Mo", "Tu", "We", "Th", "Fr", "Sa"]) grid.append(el("span", { class: "cal-dow", "aria-hidden": "true" }, d));
-    const firstDow = new Date(Date.UTC(cal.y, cal.m, 1)).getUTCDay();
-    const days = new Date(Date.UTC(cal.y, cal.m + 1, 0)).getUTCDate();
-    for (let i = 0; i < firstDow; i++) grid.append(el("span"));
-    const monthPrefix = `${cal.y}-${String(cal.m + 1).padStart(2, "0")}-`;
-    if (!cal.focus || !cal.focus.startsWith(monthPrefix)) {
-      const pick = [state.to, state.from, last, first].find(v => v && v.startsWith(monthPrefix));
-      cal.focus = pick || (monthPrefix + "01" < first ? first : monthPrefix + "01");
+      const head = el("div", { class: "cal-head" });
+      const prev = el("button", { type: "button", class: "cal-nav", "aria-label": "Previous month" }, "‹");
+      const next = el("button", { type: "button", class: "cal-nav", "aria-label": "Next month" }, "›");
+      prev.disabled = cur <= fm; next.disabled = cur >= lm;
+      prev.addEventListener("click", () => { cal.m--; if (cal.m < 0) { cal.m = 11; cal.y--; } render(); });
+      next.addEventListener("click", () => { cal.m++; if (cal.m > 11) { cal.m = 0; cal.y++; } render(); });
+      const mSel = el("select", { class: "cal-month", "aria-label": "Month" });
+      MONTHS.forEach((name, i) => { const o = el("option", { value: i }, name); o.disabled = cal.y * 12 + i < fm || cal.y * 12 + i > lm; mSel.append(o); });
+      mSel.value = String(cal.m);
+      mSel.addEventListener("change", () => { cal.m = +mSel.value; render(); pop.querySelector(".cal-month").focus(); });
+      const ySel = el("select", { class: "cal-year", "aria-label": "Year" });
+      for (let y = fy; y <= ly; y++) ySel.append(el("option", { value: y }, String(y)));
+      ySel.value = String(cal.y);
+      ySel.addEventListener("change", () => { cal.y = +ySel.value; render(); pop.querySelector(".cal-year").focus(); });
+      head.append(prev, mSel, ySel, next);
+
+      const grid = el("div", { class: "cal-grid", role: "group", "aria-label": `${MONTHS[cal.m]} ${cal.y}` });
+      for (const d of ["Su", "Mo", "Tu", "We", "Th", "Fr", "Sa"]) grid.append(el("span", { class: "cal-dow", "aria-hidden": "true" }, d));
+      const firstDow = new Date(Date.UTC(cal.y, cal.m, 1)).getUTCDay();
+      const days = new Date(Date.UTC(cal.y, cal.m + 1, 0)).getUTCDate();
+      for (let i = 0; i < firstDow; i++) grid.append(el("span"));
+      const prefix = `${cal.y}-${String(cal.m + 1).padStart(2, "0")}-`;
+      if (!cal.focus || !cal.focus.startsWith(prefix)) {
+        const pick = [...value(), last, first].find(v => v && v.startsWith(prefix) && v >= first && v <= last);
+        cal.focus = pick || (prefix + "01" < first ? first : prefix + "01");
+      }
+      for (let n = 1; n <= days; n++) {
+        const v = prefix + String(n).padStart(2, "0");
+        const b = el("button", { type: "button", class: "day", "data-d": v, "aria-label": longDate(v), tabindex: v === cal.focus ? 0 : -1 }, String(n));
+        b.disabled = v < first || v > last;
+        grid.append(b);
+      }
+      const foot = el("div", { class: "cal-foot" });
+      const cancel = el("button", { type: "button" }, "Cancel");
+      cancel.addEventListener("click", () => close(true));
+      foot.append(el("span", { class: "cal-hint", "aria-live": "polite" }), cancel);
+      pop.replaceChildren(head, grid, foot);
+      shade();
     }
-    for (let n = 1; n <= days; n++) {
-      const v = monthPrefix + String(n).padStart(2, "0");
-      const b = el("button", { type: "button", class: "day", "data-d": v, "aria-label": longDate(v), tabindex: v === cal.focus ? 0 : -1 }, String(n));
-      b.disabled = v < first || v > last;
-      grid.append(b);
+    function choose(v) {
+      if (mode === "single") { close(true); onPick(v, v); return; }
+      if (!cal.pending) { cal.pending = v; cal.hover = null; cal.focus = v; shade(); return; }
+      const [a, b] = cal.pending <= v ? [cal.pending, v] : [v, cal.pending];
+      cal.pending = null;
+      close(true);
+      onPick(a, b);
     }
-    const foot = el("div", { class: "cal-foot" });
-    const cancel = el("button", { type: "button" }, "Cancel");
-    cancel.addEventListener("click", () => closeCal(true));
-    foot.append(el("span", { id: "calHint", "aria-live": "polite" }), cancel);
-    $("cal").replaceChildren(head, grid, foot);
-    shadeDays();
-  }
-  function chooseDay(v) {
-    if (!cal.pending) { cal.pending = v; cal.hover = null; cal.focus = v; shadeDays(); return; }
-    [state.from, state.to] = cal.pending <= v ? [cal.pending, v] : [v, cal.pending];
-    cal.pending = null;
-    closeCal(true);
-    syncCustom();
-    update();
-  }
-  function moveFocus(v) {
-    v = v < index.first_date ? index.first_date : v > index.last_date ? index.last_date : v;
-    cal.focus = v;
-    if (cal.pending) cal.hover = v;
-    const y = +v.slice(0, 4), m = +v.slice(5, 7) - 1;
-    if (y !== cal.y || m !== cal.m) { cal.y = y; cal.m = m; renderCal(); }
-    else {
-      for (const d of $("cal").querySelectorAll(".day[data-d]")) d.tabIndex = d.dataset.d === v ? 0 : -1;
-      shadeDays();
+    function moveFocus(v) {
+      const [lo, hi] = bounds();
+      v = v < lo ? lo : v > hi ? hi : v;
+      cal.focus = v;
+      if (cal.pending) cal.hover = v;
+      const y = +v.slice(0, 4), m = +v.slice(5, 7) - 1;
+      if (y !== cal.y || m !== cal.m) { cal.y = y; cal.m = m; render(); }
+      else {
+        for (const d of pop.querySelectorAll(".day[data-d]")) d.tabIndex = d.dataset.d === v ? 0 : -1;
+        shade();
+      }
+      focusDay();
     }
-    focusDay();
-  }
-  function setupRangePicker() {
-    const c = $("cal"), btn = $("rangeBtn");
-    btn.addEventListener("click", () => calOpen() ? closeCal(false) : openCal());
-    c.addEventListener("click", e => {
+    btn.addEventListener("click", () => isOpen() ? close(false) : open());
+    pop.addEventListener("click", e => {
       const d = e.target.closest(".day[data-d]");
-      if (d && !d.disabled) chooseDay(d.dataset.d);
+      if (d && !d.disabled) choose(d.dataset.d);
     });
-    c.addEventListener("pointerover", e => {
+    pop.addEventListener("pointerover", e => {
       const d = e.target.closest(".day[data-d]");
-      if (cal.pending && d && !d.disabled && cal.hover !== d.dataset.d) { cal.hover = d.dataset.d; shadeDays(); }
+      if (cal.pending && d && !d.disabled && cal.hover !== d.dataset.d) { cal.hover = d.dataset.d; shade(); }
     });
-    c.addEventListener("keydown", e => {
-      if (e.key === "Escape") { e.preventDefault(); closeCal(true); return; }
+    pop.addEventListener("keydown", e => {
+      if (e.key === "Escape") { e.preventDefault(); close(true); return; }
       const d = e.target.closest(".day[data-d]");
       if (!d) return;
       const step = { ArrowLeft: -1, ArrowRight: 1, ArrowUp: -7, ArrowDown: 7 }[e.key];
       if (step) { e.preventDefault(); moveFocus(addDays(d.dataset.d, step)); }
       else if (e.key === "PageUp" || e.key === "PageDown") { e.preventDefault(); moveFocus(addMonths(d.dataset.d, e.key === "PageUp" ? -1 : 1)); }
     });
-    document.addEventListener("pointerdown", e => {
-      if (calOpen() && !$("customRange").contains(e.target)) closeCal(false);
+    document.addEventListener("pointerdown", e => { if (isOpen() && !wrap.contains(e.target)) close(false); });
+    return { open, close, isOpen };
+  }
+
+  // Dashboard date filter: custom range
+  let rangeCal = null;
+  function syncCustom() {
+    $("customRange").hidden = state.range !== "custom";
+    $("rangeBtn").replaceChildren(calIcon(), document.createTextNode(state.from && state.to ? `${fmtDate(state.from)} – ${fmtDate(state.to)}` : "Choose dates"));
+  }
+  const openCal = () => rangeCal?.open();
+  const closeCal = returnFocus => rangeCal?.close(returnFocus);
+  function setupRangePicker() {
+    rangeCal = makeCalendar({
+      pop: $("cal"), btn: $("rangeBtn"), wrap: $("customRange"), mode: "range",
+      bounds: () => [index.first_date, index.last_date],
+      value: () => [state.from, state.to],
+      onPick: (a, b) => { state.from = a; state.to = b; syncCustom(); update(); },
     });
     $("range").addEventListener("change", () => {
       if (state.range === "custom") {
@@ -1032,6 +1093,169 @@ td .trn { font: 600 15px var(--font-data); }
       }
     });
     syncCustom();
+  }
+
+  // ---- trip planner ---------------------------------------------------------
+  // JavaScript copy of collector/predict.py; keep the two in step.
+  // Each past trip of the train on the route is weighted by recency (halves every
+  // 30 days), similarity of time of year, and day of week; see predict.py.
+  const PM = { HALF: 30, SEASON: 1, SIGMA: 30, DOW: 0.7, WINDOW: 455, SHRINK: 10, LOOKBACK: 56 };
+  const dayNum = s => Date.parse(s + "T00:00:00Z") / 864e5;
+  const wkday = s => new Date(s + "T00:00:00Z").getUTCDay();          // 0 = Sunday
+  const isWeekend = s => { const d = wkday(s); return d === 0 || d === 6; };
+  const doy = s => dayNum(s) - dayNum(s.slice(0, 4) + "-01-01") + 1;
+  const tripDate = l => l[2] === 0 ? l[0] : addDays(l[0], Math.floor((l[3] - l[6]) / 1440));
+  function planWeight(when, target, useDow) {
+    const age = dayNum(target) - dayNum(when);
+    let w = 0.5 ** (age / PM.HALF);
+    if (PM.SEASON) {
+      const g = Math.abs(doy(when) - doy(target)), gap = Math.min(g, 365 - g);
+      w += PM.SEASON * Math.exp(-0.5 * (gap / PM.SIGMA) ** 2) * 0.5 ** (age / 365);
+    }
+    if (useDow && wkday(when) !== wkday(target)) w *= isWeekend(when) === isWeekend(target) ? PM.DOW : PM.DOW ** 2;
+    return w;
+  }
+  function wQuantile(pairs, q) {
+    if (!pairs.length) return null;
+    pairs = [...pairs].sort((a, b) => a[0] - b[0]);
+    const total = pairs.reduce((t, p) => t + p[1], 0);
+    let acc = 0;
+    for (const [v, w] of pairs) { acc += w; if (acc >= q * total - 1e-12) return v; }
+    return pairs[pairs.length - 1][0];
+  }
+  function planPredict(routeLegs, train, target, historyEnd, thr) {
+    const lo = addDays(target, -PM.WINDOW);
+    const usable = [];
+    for (const l of routeLegs) { const d = tripDate(l); if (d >= lo && d <= historyEnd && d < target) usable.push([l, d]); }
+    const mine = usable.filter(([l]) => l[1] === train);
+    if (!mine.length) return null;
+    const tally = (rows, useDow) => {
+      let sw = 0, sw2 = 0, on = 0, cancel = 0, all = 0; const delays = [];
+      for (const [l, d] of rows) {
+        const w = planWeight(d, target, useDow);
+        all += w;
+        if (l[8]) { cancel += w; continue; }
+        const a = arrDelay(l);
+        if (a == null) continue;
+        sw += w; sw2 += w * w; if (a <= thr) on += w; delays.push([a, w]);
+      }
+      return { sw, sw2, on, cancel, all, delays };
+    };
+    const t = tally(mine, true), r = tally(usable, false);
+    const pRoute = r.sw ? r.on / r.sw : 0.65;
+    const neff = t.sw ? t.sw * t.sw / t.sw2 : 0;
+    const p = t.sw ? (neff * (t.on / t.sw) + PM.SHRINK * pRoute) / (neff + PM.SHRINK) : pRoute;
+    return {
+      onTime: p, p10: wQuantile(t.delays, 0.1), p50: wQuantile(t.delays, 0.5), p90: wQuantile(t.delays, 0.9),
+      late30: t.sw ? t.delays.filter(([a]) => a >= 30).reduce((s, [, w]) => s + w, 0) / t.sw : null,
+      canceled: t.all ? t.cancel / t.all : 0, trips: neff,
+    };
+  }
+  function planOptions(routeLegs, target, historyEnd) {
+    const since = addDays(historyEnd, -PM.LOOKBACK), latest = new Map();
+    for (const l of routeLegs) {
+      const d = tripDate(l);
+      if (d > since && d <= historyEnd && wkday(d) === wkday(target) && (!latest.has(l[1]) || d > latest.get(l[1])[0])) latest.set(l[1], [d, l]);
+    }
+    return [...latest.values()].map(([, l]) => ({ train: l[1], dep: depMin(l), arr: arrMin(l), dur: l[6] }))
+      .sort((a, b) => a.dep - b.dep || a.train - b.train);
+  }
+  // Plain on-time share for a train within [from, to] (for the "why" line).
+  function plainRate(routeLegs, train, from, to, thr) {
+    let n = 0, on = 0;
+    for (const l of routeLegs) {
+      if (l[1] !== train || l[8]) continue;
+      const d = tripDate(l), a = arrDelay(l);
+      if (d < from || d > to || a == null) continue;
+      n++; if (a <= thr) on++;
+    }
+    return { n, rate: n ? (100 * on) / n : null };
+  }
+
+  const weekdayName = s => parseISO(s).toLocaleDateString("en-US", { weekday: "long", timeZone: "UTC" });
+  const todayISO = () => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`; };
+  const planBounds = () => { const t = todayISO(); return [t, addDays(t, 365)]; };
+  let planCal = null;
+  function planState() {
+    const p = state.plan || (state.plan = {});
+    const [lo, hi] = planBounds();
+    if (!p.date || p.date < lo || p.date > hi) p.date = addDays(lo, 1);
+    if (p.dir !== 0 && p.dir !== 1) p.dir = 0;
+    if (!p.station || !index.stations.some(s => s.code === p.station)) p.station = "WAS";
+    return p;
+  }
+  async function renderPlan() {
+    const p = planState(), out = $("planOut");
+    $("planDateBtn").replaceChildren(calIcon(), document.createTextNode(
+      parseISO(p.date).toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric", year: "numeric", timeZone: "UTC" })));
+    chips($("planDir"), [{ v: 0, label: `CVS → ${p.station}` }, { v: 1, label: `${p.station} → CVS` }],
+      it => it.v === p.dir, it => { p.dir = it.v; store.set("state", state); renderPlan(); });
+    $("planStation").value = p.station;
+    let route;
+    try { route = (await loadStation(p.station)).filter(l => l[2] === p.dir); }
+    catch (e) { out.replaceChildren(el("p", { class: "empty" }, `Couldn't load trips for ${p.station}. ${e.message}`)); return; }
+    const end = index.last_date, thr = state.thr;
+    const name = index.stations.find(s => s.code === p.station)?.name || p.station;
+    const from = p.dir === 0 ? "Charlottesville" : name, to = p.dir === 0 ? name : "Charlottesville";
+    const opts = planOptions(route, p.date, end);
+    if (!opts.length) {
+      out.replaceChildren(el("p", { class: "empty" }, `No trains from ${from} to ${to} have run on a ${weekdayName(p.date)} in the last 8 weeks.`));
+      $("planNote").textContent = "";
+      return;
+    }
+    const preds = opts.map(o => ({ ...o, ...planPredict(route, o.train, p.date, end, thr) }));
+    const best = Math.max(...preds.map(x => x.onTime));
+    const list = el("div", { class: "plan-list" });
+    const lastYear = addDays(p.date, -365);
+    for (const x of preds) {
+      const row = el("div", { class: `trip${x.onTime === best && preds.length > 1 ? " best" : ""}` });
+      const id = el("div", { class: "trip-id" });
+      const top = el("div");
+      top.append(el("span", { class: "trn" }, String(x.train)));
+      if (x.onTime === best && preds.length > 1) top.append(el("span", { class: "badge" }, "Best odds"));
+      const dayShift = Math.round((x.dep + x.dur - x.arr) / 1440);
+      id.append(top, el("span", { class: "nm" }, index.trains[x.train] || ""),
+        el("span", { class: "tm" }, `${clock(x.dep)} → ${clock(x.arr)}${dayShift > 0 ? ` (+${dayShift} day)` : ""}`));
+      const pct_ = Math.round(100 * x.onTime), cls = rateClass(pct_);
+      const odds = el("div", { class: `odds ${cls}` });
+      const big = el("span", { class: "big" }, `${pct_}%`);
+      big.append(el("small", {}, `chance on time (within ${thr} min)`));
+      const meter = el("div", { class: "meter", role: "img", "aria-label": `${pct_}% chance on time` });
+      meter.append(el("span", { style: `width:${pct_}%` }));
+      odds.append(big, meter);
+      const det = el("div", { class: "trip-detail" });
+      const line = (label, value) => { const d = el("span"); d.append(document.createTextNode(label), el("b", {}, value)); return d; };
+      if (x.p50 != null) {
+        const rel = x.p50 === 0 ? "on schedule" : x.p50 < 0 ? `${-x.p50} min early` : `${x.p50} min late`;
+        det.append(line("Likely arrival ", `${clock(x.arr + x.p50)} (${rel})`));
+        det.append(line("8 in 10 trips arrive ", `${clock(x.arr + x.p10)} – ${clock(x.arr + x.p90)}`));
+      }
+      det.append(line("30+ min late: ", x.late30 == null ? "–" : `${Math.round(100 * x.late30)}%`));
+      if (x.canceled >= 0.005) det.append(line("Canceled: ", `${Math.max(1, Math.round(100 * x.canceled))}%`));
+      if (x.trips < 5) det.append(el("span", {}, "Limited history: leaning on other trains on this route"));
+      const recent = plainRate(route, x.train, addDays(end, -55), end, thr);
+      const ly = plainRate(route, x.train, addDays(lastYear, -21), addDays(lastYear, 21), thr);
+      const why = el("div", { class: "trip-why" },
+        `Last 8 weeks: ${recent.n ? `${Math.round(recent.rate)}% on time (${recent.n} trips)` : "no trips"} · ` +
+        `Same weeks last year: ${ly.n ? `${Math.round(ly.rate)}% on time (${ly.n} trips)` : "no trips"}`);
+      row.append(id, odds, det, why);
+      list.append(row);
+    }
+    out.replaceChildren(list);
+    $("planNote").textContent = `Odds, not a forecast: they come from this train's trips over the last 15 months, with recent weeks and the same time of year counting most. ` +
+      `The trains listed are the ones that ran on a ${weekdayName(p.date)} in the last 8 weeks, at their latest times; check Amtrak's timetable for schedule changes or track work.`;
+  }
+  function setupPlanner(stations) {
+    const sel = $("planStation");
+    sel.replaceChildren(...stations.map(s => el("option", { value: s.code }, `${s.name}${s.state ? ", " + s.state : ""} (${s.code})`)));
+    planState();
+    sel.addEventListener("change", () => { state.plan.station = sel.value; store.set("state", state); renderPlan(); });
+    planCal = makeCalendar({
+      pop: $("planCal"), btn: $("planDateBtn"), wrap: $("planDateWrap"), mode: "single",
+      bounds: planBounds, value: () => [state.plan.date, state.plan.date],
+      onPick: d => { state.plan.date = d; store.set("state", state); renderPlan(); },
+    });
+    renderPlan();
   }
 
   async function selectStation(code) {
@@ -1061,10 +1285,11 @@ td .trn { font: 600 15px var(--font-data); }
     for (const id of ["range", "measure", "thr"]) {
       const c = $(id);
       c.value = String(state[id]);
-      c.addEventListener("change", () => { state[id] = id === "thr" ? Number(c.value) : c.value; update(); });
+      c.addEventListener("change", () => { state[id] = id === "thr" ? Number(c.value) : c.value; update(); if (id === "thr") renderPlan(); });
     }
     setupRangePicker();
     setupResets();
+    setupPlanner(st);
     const gen = new Date(index.generated_at);
     $("stamp").textContent = `Data ${index.first_date} to ${index.last_date} · updated ${gen.toLocaleString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}`;
     await selectStation(state.station);

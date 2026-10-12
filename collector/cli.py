@@ -1,4 +1,4 @@
-"""Command line: `python -m collector {update,discover,backfill,build}`."""
+"""Command line: `python -m collector {update,discover,backfill,build,site,backtest}`."""
 from __future__ import annotations
 
 import argparse
@@ -10,9 +10,9 @@ from pathlib import Path
 from typing import Any, Callable, Iterable
 from zoneinfo import ZoneInfo
 
-from . import storage
+from . import predict, storage
 from .asm import AsmClient, FetchError, StopRow, fetch_json, parse_run
-from .build import HOME, build
+from .build import HOME, _group_runs, build, legs_for_run
 from .stations import Stations
 
 log = logging.getLogger("collector")
@@ -197,6 +197,30 @@ def cmd_site(c: Collector, args) -> None:
     log.info("site written to %s", out)
 
 
+def cmd_backtest(c: Collector, args) -> None:
+    """Check the trip planner model: predict recent arrivals using only older data."""
+    legs: dict[tuple[str, int], list] = {}
+    for stops in _group_runs(storage.iter_all(c.stops_dir)).values():
+        for code, leg in legs_for_run(stops).items():
+            if code in args.stations:
+                legs.setdefault((code, leg[2]), []).append(leg)
+    last = max(predict.trip_date(l) for ls in legs.values() for l in ls)
+    test_from = last - timedelta(days=args.days)
+    total = model = base = 0.0
+    for (code, direction), ls in sorted(legs.items()):
+        r = predict.backtest(ls, test_from, horizon_days=args.horizon)
+        if not r["trips"]:
+            continue
+        route = f"CVS->{code}" if direction == 0 else f"{code}->CVS"
+        print(f"{route:<9} trips {r['trips']:>5}  model Brier {r['model_brier']:.4f}  train 1-yr average {r['baseline_brier']:.4f}")
+        total += r["trips"]
+        model += r["model_brier"] * r["trips"]
+        base += r["baseline_brier"] * r["trips"]
+    if total:
+        print(f"{'all':<9} trips {int(total):>5}  model Brier {model / total:.4f}  train 1-yr average {base / total:.4f}"
+              f"   (test {test_from}..{last}, predicting {args.horizon} days ahead; lower is better)")
+
+
 def main(argv: list[str] | None = None) -> int:
     p = argparse.ArgumentParser(prog="collector")
     p.add_argument("--data", default=str(ROOT / "data"))
@@ -216,10 +240,15 @@ def main(argv: list[str] | None = None) -> int:
     s.add_argument("--out", default=str(ROOT / "site" / "data"))
     w = sub.add_parser("site", help="write the full static site (page + data) for GitHub Pages")
     w.add_argument("--out", default=str(ROOT / "_site"))
+    t = sub.add_parser("backtest", help="score the trip planner model on recent trips")
+    t.add_argument("--days", type=int, default=120, help="test on the last N days")
+    t.add_argument("--horizon", type=int, default=7, help="predict this many days ahead")
+    t.add_argument("--stations", nargs="+", default=["WAS", "NYP"])
     args = p.parse_args(argv)
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
     c = Collector(Path(args.data), delay=args.delay)
-    {"update": cmd_update, "discover": cmd_discover, "backfill": cmd_backfill, "build": cmd_build, "site": cmd_site}[args.cmd](c, args)
+    {"update": cmd_update, "discover": cmd_discover, "backfill": cmd_backfill, "build": cmd_build, "site": cmd_site,
+     "backtest": cmd_backtest}[args.cmd](c, args)
     if c.failures:
         log.warning("%d fetches failed", c.failures)
     return 0
