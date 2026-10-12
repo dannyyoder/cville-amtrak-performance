@@ -48,10 +48,9 @@ jobs:
           git push origin "HEAD:${GITHUB_REF_NAME}"
 
   pages:
-    # Turn on by making the repo public (or on a paid plan), enabling Pages with
-    # source "GitHub Actions", and adding repository variable PAGES_ENABLED=true.
+    # Needs Settings -> Pages -> Source set to "GitHub Actions".
     needs: collect
-    if: always() && vars.PAGES_ENABLED == 'true' && needs.collect.result != 'failure'
+    if: always() && needs.collect.result != 'failure'
     runs-on: ubuntu-latest
     environment:
       name: github-pages

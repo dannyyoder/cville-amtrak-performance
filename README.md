@@ -20,11 +20,9 @@ python -m http.server -d _site                      # view at http://localhost:8
 
 ## Dashboard on GitHub Pages and in Home Assistant
 
-1. Make the repo public (GitHub Pages on a private repo needs a paid plan).
-2. Go to Settings → Pages → Source and choose "GitHub Actions".
-3. Go to Settings → Secrets and variables → Actions → Variables and add `PAGES_ENABLED` = `true`.
-4. Run "Collect and publish" once. The dashboard will be at `https://dannyyoder.github.io/cville-amtrak-performance/`.
-5. In Home Assistant, edit a dashboard and add a **Webpage** card with that URL. The page works at phone width, and it follows the light/dark setting of the device or browser viewing it.
+The repo is public and Pages is set to deploy from GitHub Actions (Settings → Pages → Source), so every run of "Collect and publish" redeploys the dashboard at `https://dannyyoder.github.io/cville-amtrak-performance/`.
+
+In Home Assistant, edit a dashboard and add a **Webpage** card with that URL. The page works at phone width, and it follows the light/dark setting of the device or browser viewing it.
 
 `data/summary.json` in the built site has 30-day stats for CVS ↔ WAS and CVS ↔ NYP, ready for future HA sensors.
 
