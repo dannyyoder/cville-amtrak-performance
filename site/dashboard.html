@@ -1127,8 +1127,9 @@ td .trn { font: 600 15px var(--font-data); }
     const lo = addDays(target, -PM.WINDOW);
     const usable = [];
     for (const l of routeLegs) { const d = tripDate(l); if (d >= lo && d <= historyEnd && d < target) usable.push([l, d]); }
-    const mine = usable.filter(([l]) => l[1] === train);
-    if (!mine.length) return null;
+    let mine = usable.filter(([l]) => l[1] === train);
+    const routeOnly = !mine.length;          // no history for this train: use the route's other trains
+    if (routeOnly) { if (!usable.length) return null; mine = usable; }
     const tally = (rows, useDow) => {
       let sw = 0, sw2 = 0, on = 0, cancel = 0, all = 0; const delays = [];
       for (const [l, d] of rows) {
@@ -1148,8 +1149,34 @@ td .trn { font: 600 15px var(--font-data); }
     return {
       onTime: p, p10: wQuantile(t.delays, 0.1), p50: wQuantile(t.delays, 0.5), p90: wQuantile(t.delays, 0.9),
       late30: t.sw ? t.delays.filter(([a]) => a >= 30).reduce((s, [, w]) => s + w, 0) / t.sw : null,
-      canceled: t.all ? t.cancel / t.all : 0, trips: neff,
+      canceled: t.all ? t.cancel / t.all : 0, trips: neff, routeOnly,
     };
+  }
+  // Trains in Amtrak's published timetable (data/schedule.json, from GTFS) that carry a
+  // passenger between CVS and the station, departing on `target`; see collector/schedule.py.
+  let timetable;                                       // undefined = not loaded, null = unavailable
+  async function loadTimetable() {
+    if (timetable === undefined) { try { timetable = await loadJSON("data/schedule.json"); } catch { timetable = null; } }
+    return timetable;
+  }
+  const timetableCovers = target => !!(timetable && timetable.start && timetable.start <= target && target <= timetable.end);
+  function timetableOptions(station, dir, target) {
+    const origin = dir === 0 ? HOME : station, dest = dir === 0 ? station : HOME;
+    const found = new Map();
+    for (const trip of timetable.trips) {
+      const io = trip.stops.findIndex(x => x[0] === origin), id = trip.stops.findIndex(x => x[0] === dest);
+      if (io < 0 || id < 0 || io >= id) continue;
+      const o = trip.stops[io], d = trip.stops[id];
+      const dep = o[2] ?? o[1], arr = d[1] ?? d[2];
+      if (dep == null || arr == null || !o[4] || !d[5]) continue;
+      const depL = dep + o[3], arrL = arr + d[3];
+      const service = addDays(target, -Math.floor(depL / 1440));
+      const wd = (wkday(service) + 6) % 7;                // Monday = 0, as in the feed
+      if (service < trip.start || service > trip.end || trip.days[wd] !== "1") continue;
+      found.set(`${trip.train}|${depL % 1440}`, { train: trip.train, number: trip.number, route: trip.route,
+        dep: depL % 1440, arr: arrL % 1440, dur: arr - dep, daysLater: Math.floor(arrL / 1440) - Math.floor(depL / 1440) });
+    }
+    return [...found.values()].sort((a, b) => a.dep - b.dep || a.train - b.train);
   }
   function planOptions(routeLegs, target, historyEnd) {
     const since = addDays(historyEnd, -PM.LOOKBACK), latest = new Map();
@@ -1157,7 +1184,8 @@ td .trn { font: 600 15px var(--font-data); }
       const d = tripDate(l);
       if (d > since && d <= historyEnd && wkday(d) === wkday(target) && (!latest.has(l[1]) || d > latest.get(l[1])[0])) latest.set(l[1], [d, l]);
     }
-    return [...latest.values()].map(([, l]) => ({ train: l[1], dep: depMin(l), arr: arrMin(l), dur: l[6] }))
+    return [...latest.values()].map(([, l]) => ({ train: l[1], dep: depMin(l), arr: arrMin(l), dur: l[6],
+      daysLater: Math.round((depMin(l) + l[6] - arrMin(l)) / 1440) }))
       .sort((a, b) => a.dep - b.dep || a.train - b.train);
   }
   // Plain on-time share for a train within [from, to] (for the "why" line).
@@ -1192,14 +1220,18 @@ td .trn { font: 600 15px var(--font-data); }
       it => it.v === p.dir, it => { p.dir = it.v; store.set("state", state); renderPlan(); });
     $("planStation").value = p.station;
     let route;
-    try { route = (await loadStation(p.station)).filter(l => l[2] === p.dir); }
+    try { route = (await loadStation(p.station)).filter(l => l[2] === p.dir); await loadTimetable(); }
     catch (e) { out.replaceChildren(el("p", { class: "empty" }, `Couldn't load trips for ${p.station}. ${e.message}`)); return; }
     const end = index.last_date, thr = state.thr;
     const name = index.stations.find(s => s.code === p.station)?.name || p.station;
     const from = p.dir === 0 ? "Charlottesville" : name, to = p.dir === 0 ? name : "Charlottesville";
-    const opts = planOptions(route, p.date, end);
+    const fromTimetable = timetableCovers(p.date);
+    const opts = fromTimetable ? timetableOptions(p.station, p.dir, p.date) : planOptions(route, p.date, end);
+    const dayLabel = parseISO(p.date).toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric", timeZone: "UTC" });
     if (!opts.length) {
-      out.replaceChildren(el("p", { class: "empty" }, `No trains from ${from} to ${to} have run on a ${weekdayName(p.date)} in the last 8 weeks.`));
+      out.replaceChildren(el("p", { class: "empty" }, fromTimetable
+        ? `Amtrak's timetable has no trains from ${from} to ${to} on ${dayLabel}. That usually means track work or a service change; try a nearby station or another day.`
+        : `No trains from ${from} to ${to} have run on a ${weekdayName(p.date)} in the last 8 weeks.`));
       $("planNote").textContent = "";
       return;
     }
@@ -1213,8 +1245,8 @@ td .trn { font: 600 15px var(--font-data); }
       const top = el("div");
       top.append(el("span", { class: "trn" }, String(x.train)));
       if (x.onTime === best && preds.length > 1) top.append(el("span", { class: "badge" }, "Best odds"));
-      const dayShift = Math.round((x.dep + x.dur - x.arr) / 1440);
-      id.append(top, el("span", { class: "nm" }, index.trains[x.train] || ""),
+      const dayShift = x.daysLater;
+      id.append(top, el("span", { class: "nm" }, x.route || index.trains[x.train] || ""),
         el("span", { class: "tm" }, `${clock(x.dep)} → ${clock(x.arr)}${dayShift > 0 ? ` (+${dayShift} day)` : ""}`));
       const pct_ = Math.round(100 * x.onTime), cls = rateClass(pct_);
       const odds = el("div", { class: `odds ${cls}` });
@@ -1232,18 +1264,22 @@ td .trn { font: 600 15px var(--font-data); }
       }
       det.append(line("30+ min late: ", x.late30 == null ? "–" : `${Math.round(100 * x.late30)}%`));
       if (x.canceled >= 0.005) det.append(line("Canceled: ", `${Math.max(1, Math.round(100 * x.canceled))}%`));
-      if (x.trips < 5) det.append(el("span", {}, "Limited history: leaning on other trains on this route"));
+      if (x.routeOnly) det.append(el("span", {}, `No track record for train ${x.train} on this route: odds are for the route's other trains`));
+      else if (x.trips < 5) det.append(el("span", {}, "Limited history: leaning on other trains on this route"));
       const recent = plainRate(route, x.train, addDays(end, -55), end, thr);
       const ly = plainRate(route, x.train, addDays(lastYear, -21), addDays(lastYear, 21), thr);
       const why = el("div", { class: "trip-why" },
         `Last 8 weeks: ${recent.n ? `${Math.round(recent.rate)}% on time (${recent.n} trips)` : "no trips"} · ` +
         `Same weeks last year: ${ly.n ? `${Math.round(ly.rate)}% on time (${ly.n} trips)` : "no trips"}`);
-      row.append(id, odds, det, why);
+      row.append(id, odds, det);
+      if (!x.routeOnly) row.append(why);
       list.append(row);
     }
     out.replaceChildren(list);
     $("planNote").textContent = `Odds, not a forecast: they come from this train's trips over the last 15 months, with recent weeks and the same time of year counting most. ` +
-      `The trains listed are the ones that ran on a ${weekdayName(p.date)} in the last 8 weeks, at their latest times; check Amtrak's timetable for schedule changes or track work.`;
+      (fromTimetable
+        ? `Trains and times are from Amtrak's published timetable (feed of ${fmtDate(timetable.feed_version.replace(/(\d{4})(\d\d)(\d\d)/, "$1-$2-$3"))}), which can still change before you travel.`
+        : `Amtrak's published timetable doesn't reach this date yet, so the trains listed are the ones that ran on a ${weekdayName(p.date)} in the last 8 weeks, at their latest times.`);
   }
   function setupPlanner(stations) {
     const sel = $("planStation");

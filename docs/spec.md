@@ -85,7 +85,9 @@ Every filter, including direction and station, has its own **Reset** button next
 - a "why" line: that train's plain on-time rate over the last 8 weeks and over the same weeks a year earlier,
 - a "Best odds" mark on the train with the highest on-time chance.
 
-**Which trains:** Amtrak's future timetable isn't available, so a train is listed if it ran on the same day of the week within the last 8 weeks of data, at its most recent times for that weekday. Timetable changes announced for the future are not known.
+**Which trains:** from Amtrak's published GTFS timetable (`https://content.amtrak.com/content/gtfs/GTFS.zip`, about a year ahead), refreshed by the collect workflow each run. `python -m collector schedule` (`collector/schedule.py`) keeps only rail trips through CVS and saves them to `data/schedule.json`: each trip's train number, service dates and weekdays, and every stop's times. GTFS times are Eastern and count from the trip's service date, so they can pass 24:00; each stop also stores its offset from Eastern, and pickup/drop-off rules are respected. Alternate-schedule numbers 1000–1999 are folded onto the regular train (1151 runs as 151). A trip is offered for a travel date when the service date implied by its departure time from the boarding station runs that day. Thruway buses are excluded.
+
+For dates past the end of the timetable, the planner falls back to history: a train is listed if it ran on the same day of the week within the last 8 weeks, at its latest times. A timetable train with no history on the route (for example a track-work number) is predicted from the route's other trains and labelled so.
 
 **Model** (`collector/predict.py`, with a JavaScript copy in the dashboard that must stay identical). Each past trip of the train on the route, from the 15 months before the travel date, gets a weight:
 

@@ -66,8 +66,15 @@ def test_shrinks_toward_route_when_train_has_little_history():
     others = [leg(TUE - timedelta(days=i), train=66, delay=0) for i in range(60)]       # route mostly on time
     lone = [leg(TUE, train=50, delay=90)]                                               # one awful trip
     p = P.predict(others + lone, 50, target)
-    assert 0.5 < p.on_time < 1.0 and p.trips == pytest.approx(1.0)
-    assert P.predict(others, 50, target) is None
+    assert 0.5 < p.on_time < 1.0 and p.trips == pytest.approx(1.0) and not p.route_only
+
+
+def test_train_without_history_uses_the_route():
+    target = TUE + timedelta(days=14)
+    others = [leg(TUE - timedelta(days=i), train=66, delay=(40 if i % 4 == 0 else 0)) for i in range(60)]
+    p = P.predict(others, 71, target)                      # e.g. a track-work train number
+    assert p.route_only and p.dep_min is None and 0.6 < p.on_time < 0.85
+    assert P.predict([], 71, target) is None
 
 
 def test_cancellations_and_missing_delays():

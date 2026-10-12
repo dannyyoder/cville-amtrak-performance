@@ -6,8 +6,8 @@ Personal project: collect on-time data for every Amtrak train stopping at Charlo
 - Spec: `docs/spec.md`.
 
 ## Layout
-- `collector/`: stdlib-only Python. `asm.py` (fetch + parse transitdocs), `storage.py` (monthly CSVs), `build.py` (dashboard JSON), `predict.py` (trip planner model), `cli.py` (`python -m collector update|discover|backfill|build|site|backtest`).
-- The dashboard's trip planner is a JavaScript copy of `predict.py`; change both together and re-check they agree.
+- `collector/`: stdlib-only Python. `asm.py` (fetch + parse transitdocs), `storage.py` (monthly CSVs), `build.py` (dashboard JSON), `predict.py` (trip planner model), `schedule.py` (Amtrak GTFS timetable → `data/schedule.json`), `cli.py` (`python -m collector update|discover|backfill|schedule|build|site|backtest`).
+- The dashboard's trip planner is a JavaScript copy of `predict.py` and `schedule.options`; change both together and re-check they agree.
 - `data/stops/YYYY/YYYY-MM.csv`: collected data (committed). `data/stations.json`: station names and time zones. Known train numbers are derived from the CSVs.
 - `site/dashboard.html`: the dashboard page, written as a body fragment (claude.ai artifact format). `collector site` wraps it into a full `index.html` for Pages.
 - `.github/workflows/`: collect (twice daily), backfill (manual), tests.

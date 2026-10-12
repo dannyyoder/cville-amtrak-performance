@@ -37,6 +37,10 @@ jobs:
           PROBE=""
           if [ "${{ inputs.probe }}" = "true" ] || { [ "$(date -u +%u)" = "1" ] && [ "$(date -u +%H)" -lt 12 ]; }; then PROBE="--probe"; fi
           python -m collector update --days 4 $PROBE
+      - name: Refresh Amtrak's published timetable (GTFS)
+        # A failed download keeps yesterday's timetable rather than blocking data collection.
+        continue-on-error: true
+        run: python -m collector schedule
       - name: Commit data
         run: |
           git config user.name "github-actions[bot]"

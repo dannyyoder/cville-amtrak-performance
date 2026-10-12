@@ -10,12 +10,13 @@ python -m collector update                          # fetch the last 4 days
 python -m collector backfill --start 2024-01-01 --end 2024-12-31
 python -m collector site --out _site                # build the dashboard + data
 python -m http.server -d _site                      # view at http://localhost:8000
+python -m collector schedule                        # refresh Amtrak's timetable (GTFS) for the trip planner
 python -m collector backtest                        # check the trip planner's accuracy on recent trips
 ```
 
 ## Workflows
 
-- **Collect and publish** runs at about 7 AM and 7 PM Eastern. It fetches recent runs, commits `data/`, and redeploys the dashboard to GitHub Pages.
+- **Collect and publish** runs at about 7 AM and 7 PM Eastern. It fetches recent runs and Amtrak's latest timetable, commits `data/`, and redeploys the dashboard to GitHub Pages.
 - **Backfill history** is run by hand with a start and end date. Run it about one year at a time; each run stops after roughly 5 hours and logs where to resume.
 - **Tests** runs pytest.
 

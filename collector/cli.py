@@ -1,4 +1,4 @@
-"""Command line: `python -m collector {update,discover,backfill,build,site,backtest}`."""
+"""Command line: `python -m collector {update,discover,backfill,schedule,build,site,backtest}`."""
 from __future__ import annotations
 
 import argparse
@@ -10,7 +10,7 @@ from pathlib import Path
 from typing import Any, Callable, Iterable
 from zoneinfo import ZoneInfo
 
-from . import predict, storage
+from . import predict, schedule, storage
 from .asm import AsmClient, FetchError, StopRow, fetch_json, parse_run
 from .build import HOME, _group_runs, build, legs_for_run
 from .stations import Stations
@@ -172,8 +172,24 @@ def cmd_backfill(c: Collector, args) -> None:
             break
 
 
+def cmd_schedule(c: Collector, args) -> None:
+    """Download Amtrak's GTFS timetable and save the trains through CVS."""
+    s = schedule.extract(schedule.fetch_gtfs(args.url))
+    if not s["trips"]:
+        raise SystemExit("GTFS feed had no rail trips through CVS; keeping the previous schedule")
+    schedule.write(s, c.data_dir / "schedule.json")
+    log.info("schedule: %d trips through CVS, %s..%s (feed %s)", len(s["trips"]), s["start"], s["end"], s["feed_version"])
+
+
+def _copy_schedule(c: Collector, out: Path) -> None:
+    src = c.data_dir / "schedule.json"
+    if src.exists():
+        (out / "schedule.json").write_text(src.read_text())
+
+
 def cmd_build(c: Collector, args) -> None:
     idx = build(storage.iter_all(c.stops_dir), Path(args.out), c.stations.data)
+    _copy_schedule(c, Path(args.out))
     log.info("built %d stations, %s..%s", len(idx["stations"]), idx["first_date"], idx["last_date"])
 
 
@@ -192,6 +208,7 @@ def cmd_site(c: Collector, args) -> None:
     """Write a deployable static site: index.html (the dashboard page) plus data/."""
     out = Path(args.out)
     build(storage.iter_all(c.stops_dir), out / "data", c.stations.data)
+    _copy_schedule(c, out / "data")
     page = (ROOT / "site" / "dashboard.html").read_text()
     (out / "index.html").write_text(PAGE_HEAD + page + "\n</body>\n</html>\n")
     log.info("site written to %s", out)
@@ -240,6 +257,8 @@ def main(argv: list[str] | None = None) -> int:
     s.add_argument("--out", default=str(ROOT / "site" / "data"))
     w = sub.add_parser("site", help="write the full static site (page + data) for GitHub Pages")
     w.add_argument("--out", default=str(ROOT / "_site"))
+    g = sub.add_parser("schedule", help="download Amtrak's GTFS timetable for trains through CVS")
+    g.add_argument("--url", default=schedule.GTFS_URL)
     t = sub.add_parser("backtest", help="score the trip planner model on recent trips")
     t.add_argument("--days", type=int, default=120, help="test on the last N days")
     t.add_argument("--horizon", type=int, default=7, help="predict this many days ahead")
@@ -248,7 +267,7 @@ def main(argv: list[str] | None = None) -> int:
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
     c = Collector(Path(args.data), delay=args.delay)
     {"update": cmd_update, "discover": cmd_discover, "backfill": cmd_backfill, "build": cmd_build, "site": cmd_site,
-     "backtest": cmd_backtest}[args.cmd](c, args)
+     "schedule": cmd_schedule, "backtest": cmd_backtest}[args.cmd](c, args)
     if c.failures:
         log.warning("%d fetches failed", c.failures)
     return 0
