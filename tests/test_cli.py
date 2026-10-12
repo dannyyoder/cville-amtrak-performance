@@ -66,3 +66,12 @@ def test_live_numbers(tmp_path, stations):
 def test_quarter_probe_dates():
     wed, sun = quarter_probe_dates(date(2026, 1, 1))
     assert wed.weekday() == 2 and sun.weekday() == 6 and date(2026, 1, 8) <= min(wed, sun)
+
+
+def test_collect_counts_runs_across_checkpoints(tmp_path, stations, crescent):
+    days = [date(2026, 10, d) for d in (1, 2, 3)]
+    runs = {(d, 19): {**crescent, "train_id": f"{d}_AMTK_19", "origin_date": d.isoformat()} for d in days}
+    c = make(tmp_path, stations, runs)
+    c.flush_rows = 40  # one run is 34 rows, so this checkpoints after day 2
+    assert c.collect(days, [19]) == 3
+    assert len(c.stored_ids) == 3

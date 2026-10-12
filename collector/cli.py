@@ -34,6 +34,7 @@ class Collector:
         self.delay = delay
         self.sleep = sleep
         self.failures = 0
+        self.flush_rows = 5000
         # Known train numbers and stored runs come from the CSVs themselves, so
         # concurrent collector and backfill runs never conflict on a shared index.
         self.last_seen: dict[int, str] = {}
@@ -61,6 +62,7 @@ class Collector:
         nums = sorted(set(nums))
         stored = self.stored_ids if skip_stored else set()
         found: list[StopRow] = []
+        saved = 0
         for d in dates:
             for n in nums:
                 if f"{d.isoformat()}_AMTK_{n}" in stored:
@@ -68,10 +70,10 @@ class Collector:
                 rows = self.fetch_run(d, n)
                 if rows:
                     found += rows
-            if len(found) > 5000:  # flush periodically so long backfills checkpoint
-                self._save(found)
+            if len(found) > self.flush_rows:  # checkpoint long backfills
+                saved += self._save(found)
                 found = []
-        return self._save(found)
+        return saved + self._save(found)
 
     def discover(self, dates: Iterable[date]) -> set[int]:
         """Probe every candidate train number on `dates`; return those that stop at CVS."""
