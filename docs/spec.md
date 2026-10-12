@@ -62,6 +62,8 @@ All in one row; they apply to everything on the page:
 - departure time of day (before 9 AM, 9 AM–3 PM, 3–7 PM, after 7 PM)
 - trains
 
+Each filter shows a **Reset** link next to its label while it differs from its default, and **Reset all filters** (with a count of active filters) restores them all. Direction and station are not reset, since they choose which trips are shown.
+
 ### Views
 
 - **KPI row:** on-time %, median and average delay, 90th-percentile delay, typical actual trip time vs. scheduled, and canceled trips.

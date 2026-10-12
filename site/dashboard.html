@@ -57,7 +57,16 @@ h2 { font: 600 1rem/1.2 var(--font-display); letter-spacing: 0.02em; text-transf
 /* Filters */
 .filters { display: flex; flex-wrap: wrap; gap: 14px 22px; align-items: flex-end; padding: 14px 16px; background: var(--surface); border: 1px solid var(--line); border-radius: var(--r); }
 .f { display: grid; gap: 5px; min-width: 0; }
-.f > label, .f > .lbl { font: 600 11px/1 var(--font-display); text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted); }
+.f > label, .f > .lbl, .f-head > label, .f-head > .lbl { font: 600 11px/1 var(--font-display); text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted); }
+/* Filter label row: label plus a "Reset" link that only shows while the filter differs from its default. */
+.f-head { display: flex; align-items: baseline; gap: 8px; min-height: 11px; }
+.reset { font: 500 12px/1 var(--font-body); color: var(--accent); background: none; border: 0; padding: 0; cursor: pointer; text-decoration: underline; text-decoration-color: transparent; text-underline-offset: 2px; }
+.reset:hover { text-decoration-color: currentColor; }
+.reset:focus-visible, .reset-all:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 3px; }
+.filters-foot { flex-basis: 100%; display: flex; justify-content: flex-end; padding-top: 10px; border-top: 1px solid var(--line); }
+.reset-all { font: 500 13px var(--font-body); color: var(--ink-2); background: transparent; border: 1px solid var(--line); border-radius: 5px; padding: 6px 12px; cursor: pointer; display: inline-flex; align-items: center; gap: 6px; }
+.reset-all:hover:not(:disabled) { color: var(--ink); border-color: var(--accent); background: var(--accent-wash); }
+.reset-all:disabled { opacity: 0.45; cursor: default; }
 select { font: 500 14px var(--font-body); color: var(--ink); background: var(--bg); border: 1px solid var(--line); border-radius: 5px; padding: 6px 28px 6px 9px; max-width: 100%; }
 
 /* Custom date range: a button that opens one calendar; click a start day, then an end day. */
@@ -164,7 +173,7 @@ td .trn { font: 600 15px var(--font-data); }
         <select id="station"></select>
       </div>
       <div class="f">
-        <label for="range">Dates</label>
+        <div class="f-head"><label for="range">Dates</label><button type="button" class="reset" data-reset="dates" aria-label="Reset dates" hidden>Reset</button></div>
         <select id="range">
           <option value="30">Last 30 days</option>
           <option value="90" selected>Last 90 days</option>
@@ -180,14 +189,14 @@ td .trn { font: 600 15px var(--font-data); }
         <div class="cal" id="cal" role="dialog" aria-label="Choose a date range" hidden></div>
       </div>
       <div class="f">
-        <label for="measure">Delay measured at</label>
+        <div class="f-head"><label for="measure">Delay measured at</label><button type="button" class="reset" data-reset="measure" aria-label="Reset delay measured at" hidden>Reset</button></div>
         <select id="measure">
           <option value="arr">Arrival</option>
           <option value="dep">Departure</option>
         </select>
       </div>
       <div class="f">
-        <label for="thr">On time means within</label>
+        <div class="f-head"><label for="thr">On time means within</label><button type="button" class="reset" data-reset="thr" aria-label="Reset on-time threshold" hidden>Reset</button></div>
         <select id="thr">
           <option value="5">5 min</option>
           <option value="10">10 min</option>
@@ -197,16 +206,19 @@ td .trn { font: 600 15px var(--font-data); }
       </div>
     </div>
     <div class="f">
-      <span class="lbl">Days</span>
+      <div class="f-head"><span class="lbl">Days</span><button type="button" class="reset" data-reset="days" aria-label="Reset days" hidden>Reset</button></div>
       <div class="seg" id="days"></div>
     </div>
     <div class="f">
-      <span class="lbl">Departure time</span>
+      <div class="f-head"><span class="lbl">Departure time</span><button type="button" class="reset" data-reset="tod" aria-label="Reset departure time" hidden>Reset</button></div>
       <div class="seg" id="tod"></div>
     </div>
     <div class="f" style="flex-basis:100%">
-      <span class="lbl">Trains</span>
+      <div class="f-head"><span class="lbl">Trains</span><button type="button" class="reset" data-reset="trains" aria-label="Reset trains" hidden>Reset</button></div>
       <div class="seg" id="trains"></div>
+    </div>
+    <div class="filters-foot">
+      <button type="button" class="reset-all" id="resetAll" disabled>Reset all filters</button>
     </div>
   </section>
 
@@ -793,6 +805,45 @@ td .trn { font: 600 15px var(--font-data); }
     renderDow(rows);
     renderHour(rows);
     renderTable(rows);
+    syncResets();
+  }
+
+  // ---- reset buttons -------------------------------------------------------
+  // Direction and station pick which trips you're looking at, so they aren't reset.
+  const FILTERS = {
+    dates:   { focus: "#range",          active: () => state.range !== "90",            reset: () => { state.range = "90"; state.from = state.to = null; } },
+    measure: { focus: "#measure",        active: () => state.measure !== "arr",         reset: () => { state.measure = "arr"; } },
+    thr:     { focus: "#thr",            active: () => state.thr !== 15,                reset: () => { state.thr = 15; } },
+    days:    { focus: "#days button",    active: () => state.days.length !== 7,         reset: () => { state.days = [0, 1, 2, 3, 4, 5, 6]; } },
+    tod:     { focus: "#tod button",     active: () => state.tod.length !== TOD.length, reset: () => { state.tod = TOD.map(t => t.id); } },
+    trains:  { focus: "#trains button",  active: () => !!state.trains,                  reset: () => { state.trains = null; } },
+  };
+  function syncResets() {
+    let n = 0;
+    for (const b of document.querySelectorAll(".reset[data-reset]")) {
+      const on = FILTERS[b.dataset.reset].active();
+      b.hidden = !on;
+      if (on) n++;
+    }
+    const all = $("resetAll");
+    all.disabled = n === 0;
+    all.textContent = n ? `Reset all filters (${n})` : "Reset all filters";
+  }
+  function afterReset(focusSel) {
+    for (const id of ["range", "measure", "thr"]) $(id).value = String(state[id]);
+    closeCal(false);
+    syncCustom();
+    update();
+    document.querySelector(focusSel)?.focus();
+  }
+  function setupResets() {
+    for (const b of document.querySelectorAll(".reset[data-reset]")) {
+      b.addEventListener("click", () => { const f = FILTERS[b.dataset.reset]; f.reset(); afterReset(f.focus); });
+    }
+    $("resetAll").addEventListener("click", () => {
+      for (const f of Object.values(FILTERS)) f.reset();
+      afterReset("#range");
+    });
   }
 
   // ---- custom date range picker ------------------------------------------
@@ -999,6 +1050,7 @@ td .trn { font: 600 15px var(--font-data); }
       c.addEventListener("change", () => { state[id] = id === "thr" ? Number(c.value) : c.value; update(); });
     }
     setupRangePicker();
+    setupResets();
     const gen = new Date(index.generated_at);
     $("stamp").textContent = `Data ${index.first_date} to ${index.last_date} · updated ${gen.toLocaleString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}`;
     await selectStation(state.station);
