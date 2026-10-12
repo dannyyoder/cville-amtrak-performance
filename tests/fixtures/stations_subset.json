@@ -1,0 +1,68 @@
+{
+ "ALX": {
+  "name": "Alexandria",
+  "city": "Alexandria",
+  "state": "VA",
+  "tz": "America/New_York"
+ },
+ "ATL": {
+  "name": "Atlanta Peachtree",
+  "city": "Atlanta",
+  "state": "GA",
+  "tz": "America/New_York"
+ },
+ "CLT": {
+  "name": "Charlotte",
+  "city": "Charlotte",
+  "state": "NC",
+  "tz": "America/New_York"
+ },
+ "CVS": {
+  "name": "Charlottesville",
+  "city": "Charlottesville",
+  "state": "VA",
+  "tz": "America/New_York"
+ },
+ "LYH": {
+  "name": "Lynchburg-Kemper Street",
+  "city": "Lynchburg",
+  "state": "VA",
+  "tz": "America/New_York"
+ },
+ "NOL": {
+  "name": "New Orleans",
+  "city": "New Orleans",
+  "state": "LA",
+  "tz": "America/Chicago"
+ },
+ "NWK": {
+  "name": "Newark Penn",
+  "city": "Newark",
+  "state": "NJ",
+  "tz": "America/New_York"
+ },
+ "NYP": {
+  "name": "New York Penn",
+  "city": "New York",
+  "state": "NY",
+  "tz": "America/New_York"
+ },
+ "PHL": {
+  "name": "Philadelphia 30th Street",
+  "city": "Philadelphia",
+  "state": "PA",
+  "tz": "America/New_York"
+ },
+ "TRE": {
+  "name": "Trenton",
+  "city": "Trenton",
+  "state": "NJ",
+  "tz": "America/New_York"
+ },
+ "WAS": {
+  "name": "Washington Union",
+  "city": "Washington",
+  "state": "DC",
+  "tz": "America/New_York"
+ }
+}

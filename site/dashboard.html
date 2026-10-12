@@ -1,0 +1,623 @@
+<title>Charlottesville Train Performance</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans+Condensed:wght@500;600;700&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
+<style>
+/* Layout: one filter rail on top, then KPI strip, then a two-column chart grid, then the per-train timetable. */
+:root {
+  --bg: #f6f6f3;
+  --surface: #fcfcfb;
+  --ink: #15171a;
+  --ink-2: #4c5058;
+  --muted: #80838a;
+  --grid: #e3e3dd;
+  --axis: #c3c2b7;
+  --line: rgba(21, 23, 26, 0.10);
+  --accent: #1f5f8b;
+  --accent-wash: #e3eef6;
+  --series-1: #2a78d6;
+  --series-1-soft: #9ec5f4;
+  --good: #0ca30c;
+  --good-ink: #006300;
+  --warn: #fab219;
+  --warn-ink: #8a5a00;
+  --bad: #d03b3b;
+  --bad-ink: #b02a2a;
+  --font-display: "IBM Plex Sans Condensed", "Arial Narrow", system-ui, sans-serif;
+  --font-body: "IBM Plex Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-data: "IBM Plex Mono", ui-monospace, "SFMono-Regular", Menlo, monospace;
+  --r: 6px;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #111213; --surface: #1a1a19; --ink: #f0efec; --ink-2: #c3c2b7; --muted: #8f9198;
+    --grid: #2c2c2a; --axis: #3f3f3b; --line: rgba(255, 255, 255, 0.10);
+    --accent: #7db7e3; --accent-wash: #1d2e3b; --series-1: #3987e5; --series-1-soft: #1c5cab;
+    --good-ink: #3fc23f; --warn-ink: #f2c45a; --bad-ink: #ef7c7c;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #111213; --surface: #1a1a19; --ink: #f0efec; --ink-2: #c3c2b7; --muted: #8f9198;
+  --grid: #2c2c2a; --axis: #3f3f3b; --line: rgba(255, 255, 255, 0.10);
+  --accent: #7db7e3; --accent-wash: #1d2e3b; --series-1: #3987e5; --series-1-soft: #1c5cab;
+  --good-ink: #3fc23f; --warn-ink: #f2c45a; --bad-ink: #ef7c7c;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+body { background: var(--bg); color: var(--ink); font: 15px/1.5 var(--font-body); }
+.wrap { max-width: 1180px; margin: 0 auto; padding-inline: 16px; padding-block: 20px 48px; display: grid; gap: 20px; }
+header { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 6px 24px; }
+h1 { font: 700 clamp(1.5rem, 3.6vw, 2.1rem)/1.1 var(--font-display); letter-spacing: -0.01em; margin: 0; text-wrap: balance; }
+h1 .code { font-family: var(--font-data); font-weight: 500; font-size: 0.6em; color: var(--accent); border: 1.5px solid currentColor; border-radius: 4px; padding: 1px 6px; vertical-align: 0.25em; margin-left: 4px; }
+.stamp { color: var(--muted); font-size: 13px; }
+h2 { font: 600 1rem/1.2 var(--font-display); letter-spacing: 0.02em; text-transform: uppercase; margin: 0; color: var(--ink-2); }
+.sub { color: var(--muted); font-size: 13px; margin: 2px 0 0; }
+
+/* Filters */
+.filters { display: flex; flex-wrap: wrap; gap: 14px 22px; align-items: flex-end; padding: 14px 16px; background: var(--surface); border: 1px solid var(--line); border-radius: var(--r); }
+.f { display: grid; gap: 5px; min-width: 0; }
+.f > label, .f > .lbl { font: 600 11px/1 var(--font-display); text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted); }
+select { font: 500 14px var(--font-body); color: var(--ink); background: var(--bg); border: 1px solid var(--line); border-radius: 5px; padding: 6px 28px 6px 9px; max-width: 100%; }
+.seg { display: inline-flex; flex-wrap: wrap; gap: 4px; }
+.chip { font: 500 13px/1 var(--font-body); color: var(--ink-2); background: transparent; border: 1px solid var(--line); border-radius: 999px; padding: 6px 10px; cursor: pointer; }
+.chip:hover { background: var(--accent-wash); }
+.chip[aria-pressed="true"] { background: var(--accent); border-color: var(--accent); color: var(--surface); }
+.chip.num { font-family: var(--font-data); }
+button:focus-visible, select:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.route { flex-basis: 100%; display: flex; flex-wrap: wrap; gap: 14px 22px; align-items: flex-end; padding-bottom: 12px; border-bottom: 1px solid var(--line); }
+
+/* KPIs */
+.kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 12px; }
+.kpi { background: var(--surface); border: 1px solid var(--line); border-radius: var(--r); padding: 14px 16px; display: grid; gap: 4px; align-content: start; }
+.kpi .k { font: 600 11px/1.2 var(--font-display); text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted); }
+.kpi .v { font: 600 2rem/1.1 var(--font-display); }
+.kpi .v small { font-size: 0.5em; font-weight: 500; color: var(--ink-2); margin-left: 2px; }
+.kpi .n { font-size: 13px; color: var(--ink-2); }
+
+.grid2 { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 480px), 1fr)); gap: 12px; }
+.card { background: var(--surface); border: 1px solid var(--line); border-radius: var(--r); padding: 16px; min-width: 0; display: grid; gap: 10px; align-content: start; }
+svg.chart { width: 100%; height: auto; display: block; overflow: visible; }
+svg text { font: 11px var(--font-data); fill: var(--muted); }
+svg .lbl-strong { fill: var(--ink); font-weight: 500; }
+.hit { fill: transparent; cursor: default; }
+.hit:hover + .bar, .hit:focus + .bar { opacity: 0.8; }
+.bar { fill: var(--series-1); }
+.bar.soft { fill: var(--series-1); opacity: 0.4; }
+@media (max-width: 600px) { svg text { font-size: 17px; } }
+.tip { position: fixed; pointer-events: none; background: var(--ink); color: var(--bg); padding: 6px 9px; border-radius: 5px; font-size: 12px; line-height: 1.35; max-width: 240px; z-index: 5; }
+.tip b { font: 600 14px var(--font-data); display: block; }
+
+/* Table */
+.tbl-wrap { overflow-x: auto; }
+table { border-collapse: collapse; width: 100%; font-size: 14px; }
+th, td { padding: 8px 10px; text-align: right; border-bottom: 1px solid var(--grid); white-space: nowrap; }
+th { font: 600 11px/1.2 var(--font-display); text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); cursor: pointer; user-select: none; }
+th[aria-sort="ascending"]::after { content: " ▲"; } th[aria-sort="descending"]::after { content: " ▼"; }
+th:first-child, td:first-child, th:nth-child(2), td:nth-child(2) { text-align: left; }
+td { font-variant-numeric: tabular-nums; }
+td.t { font-family: var(--font-data); font-size: 13px; }
+td .trn { font: 600 15px var(--font-data); }
+.pill { display: inline-flex; align-items: center; gap: 5px; font-weight: 600; }
+.pill::before { content: ""; width: 8px; height: 8px; border-radius: 50%; background: currentColor; }
+.ok { color: var(--good-ink); } .mid { color: var(--warn-ink); } .low { color: var(--bad-ink); }
+.empty { padding: 28px 8px; color: var(--muted); text-align: center; }
+.note { color: var(--muted); font-size: 13px; max-width: 75ch; }
+.loading { opacity: 0.5; transition: opacity 0.15s; }
+@media (prefers-reduced-motion: reduce) { .loading { transition: none; } }
+</style>
+
+<div class="wrap" id="app">
+  <header>
+    <div>
+      <h1>Charlottesville Amtrak performance <span class="code">CVS</span></h1>
+      <p class="sub" id="routeLine">Loading…</p>
+    </div>
+    <span class="stamp" id="stamp"></span>
+  </header>
+
+  <section class="filters" aria-label="Filters">
+    <div class="route">
+      <div class="f">
+        <span class="lbl">Direction</span>
+        <div class="seg" id="dir"></div>
+      </div>
+      <div class="f">
+        <label for="station">Other station</label>
+        <select id="station"></select>
+      </div>
+      <div class="f">
+        <label for="range">Dates</label>
+        <select id="range">
+          <option value="30">Last 30 days</option>
+          <option value="90" selected>Last 90 days</option>
+          <option value="365">Last 12 months</option>
+          <option value="1095">Last 3 years</option>
+          <option value="all">All data</option>
+        </select>
+      </div>
+      <div class="f">
+        <label for="measure">Delay measured at</label>
+        <select id="measure">
+          <option value="arr">Arrival</option>
+          <option value="dep">Departure</option>
+        </select>
+      </div>
+      <div class="f">
+        <label for="thr">On time means within</label>
+        <select id="thr">
+          <option value="5">5 min</option>
+          <option value="10">10 min</option>
+          <option value="15" selected>15 min (Amtrak standard)</option>
+          <option value="30">30 min</option>
+        </select>
+      </div>
+    </div>
+    <div class="f">
+      <span class="lbl">Days</span>
+      <div class="seg" id="days"></div>
+    </div>
+    <div class="f">
+      <span class="lbl">Departure time</span>
+      <div class="seg" id="tod"></div>
+    </div>
+    <div class="f" style="flex-basis:100%">
+      <span class="lbl">Trains</span>
+      <div class="seg" id="trains"></div>
+    </div>
+  </section>
+
+  <section class="kpis" id="kpis" aria-label="Summary"></section>
+
+  <div class="grid2">
+    <section class="card">
+      <div><h2>How late</h2><p class="sub" id="histSub">Share of trips by minutes late</p></div>
+      <div id="hist"></div>
+    </section>
+    <section class="card">
+      <div><h2>On-time rate by month</h2><p class="sub">Months with fewer than 5 trips are skipped</p></div>
+      <div id="trend"></div>
+    </section>
+    <section class="card">
+      <div><h2>By day of week</h2><p class="sub">On-time rate, by day of the scheduled departure</p></div>
+      <div id="dow"></div>
+    </section>
+    <section class="card">
+      <div><h2>By departure time</h2><p class="sub">On-time rate, by scheduled departure hour</p></div>
+      <div id="hour"></div>
+    </section>
+  </div>
+
+  <section class="card">
+    <div><h2>By train</h2><p class="sub">Scheduled times are local to each station. Click a column to sort.</p></div>
+    <div class="tbl-wrap"><table id="tbl"></table></div>
+  </section>
+
+  <p class="note" id="foot">Source: Amtrak Status Maps (asm.transitdocs.com), which records Amtrak's reported arrival and departure times. Delays use reported actual times only; trips whose times were never posted are left out of delay stats. Canceled trips are counted separately.</p>
+</div>
+<div class="tip" id="tip" hidden></div>
+
+<script>
+(() => {
+  const HOME = "CVS";
+  const DOW = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
+  const TOD = [
+    { id: "am", label: "Before 9 AM", lo: 0, hi: 540 },
+    { id: "mid", label: "9 AM–3 PM", lo: 540, hi: 900 },
+    { id: "pm", label: "3–7 PM", lo: 900, hi: 1140 },
+    { id: "night", label: "After 7 PM", lo: 1140, hi: 1440 },
+  ];
+  const BINS = [
+    { label: "Early", test: d => d < 0 },
+    { label: "0–4", test: d => d >= 0 && d < 5 },
+    { label: "5–9", test: d => d >= 5 && d < 10 },
+    { label: "10–14", test: d => d >= 10 && d < 15 },
+    { label: "15–29", test: d => d >= 15 && d < 30 },
+    { label: "30–59", test: d => d >= 30 && d < 60 },
+    { label: "60+", test: d => d >= 60 },
+  ];
+  const $ = id => document.getElementById(id);
+  const store = {
+    get(k) { try { return JSON.parse(localStorage.getItem("cvsperf:" + k)); } catch { return null; } },
+    set(k, v) { try { localStorage.setItem("cvsperf:" + k, JSON.stringify(v)); } catch {} },
+  };
+  const state = Object.assign({
+    dir: 0, station: "WAS", range: "90", measure: "arr", thr: 15,
+    days: [0, 1, 2, 3, 4, 5, 6], tod: TOD.map(t => t.id), trains: null,
+  }, store.get("state") || {});
+  let index = null, legs = [], sortKey = "dep", sortAsc = true;
+  const cache = new Map();
+
+  // ---- formatting -------------------------------------------------
+  const clock = m => {
+    m = ((m % 1440) + 1440) % 1440;
+    const h = Math.floor(m / 60), mm = String(m % 60).padStart(2, "0");
+    return `${((h + 11) % 12) + 1}:${mm} ${h < 12 ? "AM" : "PM"}`;
+  };
+  const dur = m => `${Math.floor(m / 60)}h ${String(Math.round(m % 60)).padStart(2, "0")}m`;
+  const signed = m => m == null ? "–" : m === 0 ? "0" : (m > 0 ? `+${m}` : `${m}`);
+  const pct = x => x == null ? "–" : `${Math.round(x)}%`;
+  const dowOf = iso => (new Date(iso + "T12:00:00Z").getUTCDay() + 6) % 7; // Mon = 0
+  const quant = (arr, q) => {
+    if (!arr.length) return null;
+    const s = [...arr].sort((a, b) => a - b), i = (s.length - 1) * q, lo = Math.floor(i);
+    return Math.round(s[lo] + (s[Math.ceil(i)] - s[lo]) * (i - lo));
+  };
+  const rateClass = r => r == null ? "" : r >= 80 ? "ok" : r >= 60 ? "mid" : "low";
+  const el = (tag, attrs = {}, text) => {
+    const n = document.createElementNS(tag === "svg" || attrs._svg ? "http://www.w3.org/2000/svg" : "http://www.w3.org/1999/xhtml", tag);
+    for (const [k, v] of Object.entries(attrs)) if (k !== "_svg") n.setAttribute(k, v);
+    if (text != null) n.textContent = text;
+    return n;
+  };
+  const svgEl = (tag, attrs, text) => el(tag, { ...attrs, _svg: 1 }, text);
+
+  // ---- leg accessors -----------------------------------------------
+  // row: [date, train, dir, cvs_min, cvs_delay, x_min, dur_min, x_delay, canceled]
+  const depMin = l => l[2] === 0 ? l[3] : l[5];          // scheduled departure (origin-local)
+  const arrMin = l => l[2] === 0 ? l[5] : l[3];
+  const arrDelay = l => l[2] === 0 ? l[7] : l[4];
+  const depDelay = l => l[2] === 0 ? l[4] : l[7];
+  const delayOf = l => state.measure === "arr" ? arrDelay(l) : depDelay(l);
+
+  // ---- data --------------------------------------------------------
+  async function loadJSON(path) {
+    const r = await fetch(path, { cache: "no-cache" });
+    if (!r.ok) throw new Error(`${path}: HTTP ${r.status}`);
+    return r.json();
+  }
+  async function loadStation(code) {
+    if (!cache.has(code)) cache.set(code, loadJSON(`data/legs/${code}.json`));
+    return cache.get(code);
+  }
+
+  function baseRows() {
+    const dirRows = legs.filter(l => l[2] === state.dir);
+    let since = null;
+    if (state.range !== "all" && index.last_date) {
+      const d = new Date(index.last_date + "T12:00:00Z");
+      d.setUTCDate(d.getUTCDate() - Number(state.range) + 1);
+      since = d.toISOString().slice(0, 10);
+    }
+    return dirRows.filter(l => !since || l[0] >= since);
+  }
+  function filtered(rows) {
+    const days = new Set(state.days), tods = TOD.filter(t => state.tod.includes(t.id));
+    return rows.filter(l =>
+      days.has(dowOf(l[0])) &&
+      tods.some(t => depMin(l) >= t.lo && depMin(l) < t.hi) &&
+      (!state.trains || state.trains.includes(l[1])));
+  }
+  function stats(rows) {
+    const live = rows.filter(l => !l[8]);
+    const ds = live.map(delayOf).filter(d => d != null);
+    const onTime = ds.filter(d => d <= state.thr).length;
+    return {
+      trips: rows.length, canceled: rows.length - live.length, measured: ds.length, ds,
+      rate: ds.length ? (100 * onTime) / ds.length : null,
+      median: quant(ds, 0.5), p90: quant(ds, 0.9),
+      avg: ds.length ? ds.reduce((a, b) => a + b, 0) / ds.length : null,
+    };
+  }
+
+  // ---- controls ----------------------------------------------------
+  function chips(container, items, isOn, onClick, cls = "") {
+    container.replaceChildren(...items.map(it => {
+      const b = el("button", { type: "button", class: `chip ${cls}`, "aria-pressed": String(isOn(it)) }, it.label);
+      if (it.title) b.title = it.title;
+      b.addEventListener("click", () => onClick(it));
+      return b;
+    }));
+  }
+  function toggleIn(list, v, all) {
+    const s = new Set(list);
+    if (s.size === all.length) return [v];          // first click narrows to one
+    s.has(v) ? s.delete(v) : s.add(v);
+    return s.size ? [...s] : [...all];
+  }
+  function renderControls(base) {
+    const st = index.stations.find(s => s.code === state.station);
+    const name = st ? st.name : state.station;
+    chips($("dir"), [{ v: 0, label: `CVS → ${state.station}` }, { v: 1, label: `${state.station} → CVS` }],
+      it => it.v === state.dir, it => { state.dir = it.v; state.trains = null; update(); });
+    const weekdays = [0, 1, 2, 3, 4], weekend = [5, 6], all = [0, 1, 2, 3, 4, 5, 6];
+    const same = (a, b) => a.length === b.length && a.every(x => b.includes(x));
+    chips($("days"), [
+      { label: "All", set: all }, { label: "Weekdays", set: weekdays }, { label: "Weekends", set: weekend },
+      ...DOW.map((d, i) => ({ label: d, one: i })),
+    ], it => it.set ? same(state.days, it.set) : (!same(state.days, all) && state.days.includes(it.one)),
+      it => { state.days = it.set ? [...it.set] : toggleIn(state.days, it.one, all); update(); });
+    chips($("tod"), [{ id: "*", label: "Any time" }, ...TOD],
+      it => it.id === "*" ? state.tod.length === TOD.length : (state.tod.length < TOD.length && state.tod.includes(it.id)),
+      it => { state.tod = it.id === "*" ? TOD.map(t => t.id) : toggleIn(state.tod, it.id, TOD.map(t => t.id)); update(); });
+    const nums = [...new Set(base.map(l => l[1]))].sort((a, b) => {
+      const ta = base.find(l => l[1] === a), tb = base.find(l => l[1] === b);
+      return depMin(ta) - depMin(tb);
+    });
+    if (state.trains) state.trains = state.trains.filter(n => nums.includes(n));
+    if (state.trains && !state.trains.length) state.trains = null;
+    chips($("trains"), [{ n: "*", label: "All trains" }, ...nums.map(n => {
+      const first = base.find(l => l[1] === n);
+      return { n, label: `${n} · ${clock(depMin(first))}`, title: index.trains[n] || "" };
+    })], it => it.n === "*" ? !state.trains : !!state.trains && state.trains.includes(it.n),
+      it => { state.trains = it.n === "*" ? null : (() => { const t = toggleIn(state.trains || nums, it.n, nums); return t.length === nums.length ? null : t; })(); update(); }, "num");
+    $("routeLine").textContent = state.dir === 0
+      ? `Trips from Charlottesville to ${name}`
+      : `Trips from ${name} to Charlottesville`;
+  }
+
+  // ---- KPIs ---------------------------------------------------------
+  function renderKpis(s, rows) {
+    const durs = rows.filter(l => !l[8] && arrDelay(l) != null && depDelay(l) != null)
+      .map(l => l[6] + arrDelay(l) - depDelay(l));
+    const sched = quant(rows.map(l => l[6]), 0.5);
+    const tiles = [
+      { k: "On time", v: pct(s.rate), cls: rateClass(s.rate), n: `${s.measured} trips with reported times` },
+      { k: "Median delay", v: s.median == null ? "–" : signed(s.median), unit: "min", n: s.avg == null ? "" : `Average ${signed(Math.round(s.avg))} min` },
+      { k: "1 in 10 trips is later than", v: s.p90 == null ? "–" : signed(s.p90), unit: "min", n: "90th percentile" },
+      { k: "Typical trip time", v: durs.length ? dur(quant(durs, 0.5)) : "–", n: sched == null ? "" : `Scheduled ${dur(sched)}` },
+      { k: "Canceled", v: String(s.canceled), n: s.trips ? `of ${s.trips} scheduled trips` : "" },
+    ];
+    $("kpis").replaceChildren(...tiles.map(t => {
+      const d = el("div", { class: "kpi" });
+      d.append(el("span", { class: "k" }, t.k));
+      const v = el("span", { class: `v ${t.cls || ""}` }, t.v);
+      if (t.unit && t.v !== "–") v.append(el("small", {}, t.unit));
+      d.append(v, el("span", { class: "n" }, t.n));
+      return d;
+    }));
+  }
+
+  // ---- charts -------------------------------------------------------
+  const tip = $("tip");
+  function showTip(evt, strong, rest) {
+    tip.replaceChildren(el("b", {}, strong), document.createTextNode(rest));
+    tip.hidden = false;
+    const r = evt.target.getBoundingClientRect ? evt.target.getBoundingClientRect() : { left: evt.clientX, top: evt.clientY, width: 0 };
+    const x = evt.clientX ?? r.left + r.width / 2, y = evt.clientY ?? r.top;
+    tip.style.left = Math.min(window.innerWidth - tip.offsetWidth - 8, Math.max(8, x + 12)) + "px";
+    tip.style.top = Math.max(8, y - tip.offsetHeight - 10) + "px";
+  }
+  const hideTip = () => { tip.hidden = true; };
+
+  // Vertical bars over categories; values in [0, max].
+  function barChart(host, cats, { max, fmt, tipText, labelEvery = 1, soft }) {
+    const W = 520, H = 210, L = 36, R = 8, T = 18, B = 26, iw = W - L - R, ih = H - T - B;
+    const svg = svgEl("svg", { class: "chart", viewBox: `0 0 ${W} ${H}`, role: "img" });
+    const ticks = max === 100 ? [0, 25, 50, 75, 100] : niceTicks(max);
+    const top = ticks[ticks.length - 1] || 1;
+    for (const t of ticks) {
+      const y = T + ih - (t / top) * ih;
+      svg.append(svgEl("line", { x1: L, x2: W - R, y1: y, y2: y, stroke: "var(--grid)", "stroke-width": 1 }));
+      svg.append(svgEl("text", { x: L - 6, y: y + 4, "text-anchor": "end" }, fmt(t)));
+    }
+    svg.append(svgEl("line", { x1: L, x2: W - R, y1: T + ih, y2: T + ih, stroke: "var(--axis)", "stroke-width": 1 }));
+    const step = iw / cats.length, bw = Math.min(46, step - 2);
+    cats.forEach((c, i) => {
+      const cx = L + step * i + step / 2;
+      if (i % labelEvery === 0) svg.append(svgEl("text", { x: cx, y: H - 8, "text-anchor": "middle" }, c.label));
+      if (c.value == null) return;
+      const h = Math.max(c.value > 0 ? 2 : 0, (c.value / top) * ih), y = T + ih - h;
+      const hit = svgEl("rect", { class: "hit", x: cx - step / 2, y: T, width: step, height: ih, tabindex: 0 });
+      const r = Math.min(4, bw / 2, h);
+      const bar = svgEl("path", { class: `bar${soft && soft(c) ? " soft" : ""}`, d: roundTop(cx - bw / 2, y, bw, h, r) });
+      const [a, b] = tipText(c);
+      hit.addEventListener("pointermove", e => showTip(e, a, b));
+      hit.addEventListener("focus", e => showTip(e, a, b));
+      hit.addEventListener("pointerleave", hideTip); hit.addEventListener("blur", hideTip);
+      svg.append(hit, bar);
+      if (c.value === 0 && !c.direct) c.direct = fmt(0);
+      if (c.direct) svg.append(svgEl("text", { x: cx, y: y - 5, "text-anchor": "middle", class: "lbl-strong" }, c.direct));
+    });
+    host.replaceChildren(svg);
+  }
+  const roundTop = (x, y, w, h, r) => h <= 0 ? "" :
+    `M${x},${y + h}V${y + r}Q${x},${y} ${x + r},${y}H${x + w - r}Q${x + w},${y} ${x + w},${y + r}V${y + h}Z`;
+  function niceTicks(max) {
+    if (!max) return [0, 1];
+    const raw = max / 4, mag = 10 ** Math.floor(Math.log10(raw));
+    const step = [1, 2, 2.5, 5, 10].map(m => m * mag).find(s => s >= raw);
+    const out = []; for (let v = 0; v <= max + step * 0.999; v += step) out.push(+v.toFixed(6));
+    return out;
+  }
+  function empty(host, msg = "No trips match these filters.") { host.replaceChildren(el("p", { class: "empty" }, msg)); }
+
+  function renderHist(s) {
+    if (!s.ds.length) return empty($("hist"));
+    const cats = BINS.map(b => {
+      const n = s.ds.filter(b.test).length;
+      return { label: b.label, n, value: (100 * n) / s.ds.length };
+    });
+    const max = Math.max(...cats.map(c => c.value));
+    cats.forEach(c => { if (c.value === max) c.direct = pct(c.value); });
+    barChart($("hist"), cats, {
+      max, fmt: v => `${v}%`, soft: c => c.label !== "Early" && parseInt(c.label) >= state.thr,
+      tipText: c => [pct(c.value), ` of trips · ${c.n} trips · ${c.label === "Early" ? "early" : c.label + " min late"}`],
+    });
+    $("histSub").textContent = `Share of trips by minutes late at ${state.measure === "arr" ? "arrival" : "departure"}. Lighter bars are past the ${state.thr}-minute on-time line.`;
+  }
+
+  function rateBy(rows, keyFn, keys, labelFn, minN = 1) {
+    return keys.map(k => {
+      const sub = rows.filter(l => keyFn(l) === k);
+      const s = stats(sub);
+      return { label: labelFn(k), key: k, n: s.measured, value: s.measured >= minN ? s.rate : null, median: s.median };
+    });
+  }
+  const rateTip = c => [pct(c.value), ` on time · ${c.n} trips · median ${signed(c.median)} min`];
+
+  function renderDow(rows) {
+    if (!rows.length) return empty($("dow"));
+    barChart($("dow"), rateBy(rows, l => dowOf(l[0]), [0, 1, 2, 3, 4, 5, 6], k => DOW[k]),
+      { max: 100, fmt: v => `${v}%`, tipText: c => [c.value == null ? "–" : pct(c.value), ` on time · ${DOW[c.key]} · ${c.n} trips · median ${signed(c.median)} min`] });
+  }
+  function renderHour(rows) {
+    if (!rows.length) return empty($("hour"));
+    const hours = [...new Set(rows.map(l => Math.floor(depMin(l) / 60)))].sort((a, b) => a - b);
+    const lab = h => `${((h + 11) % 12) + 1}${h < 12 ? "a" : "p"}`;
+    barChart($("hour"), rateBy(rows, l => Math.floor(depMin(l) / 60), hours, lab),
+      { max: 100, fmt: v => `${v}%`, labelEvery: hours.length > 14 ? 2 : 1, tipText: c => [pct(c.value), ` on time · ${lab(c.key)}m departures · ${c.n} trips · median ${signed(c.median)} min`] });
+  }
+
+  function renderTrend(rows) {
+    const host = $("trend");
+    const months = [...new Set(rows.map(l => l[0].slice(0, 7)))].sort();
+    const pts = rateBy(rows, l => l[0].slice(0, 7), months, k => k, 5).filter(p => p.value != null);
+    if (pts.length < 2) return empty(host, pts.length ? "Only one month of data in this range." : "No trips match these filters.");
+    const W = 520, H = 210, L = 36, R = 12, T = 14, B = 26, iw = W - L - R, ih = H - T - B;
+    const all = months.filter(m => m >= pts[0].key && m <= pts[pts.length - 1].key);
+    const x = m => L + (all.length === 1 ? iw / 2 : (all.indexOf(m) / (all.length - 1)) * iw);
+    const y = v => T + ih - (v / 100) * ih;
+    const svg = svgEl("svg", { class: "chart", viewBox: `0 0 ${W} ${H}`, role: "img", "aria-label": "On-time rate by month" });
+    for (const t of [0, 25, 50, 75, 100]) {
+      svg.append(svgEl("line", { x1: L, x2: W - R, y1: y(t), y2: y(t), stroke: t ? "var(--grid)" : "var(--axis)", "stroke-width": 1 }));
+      svg.append(svgEl("text", { x: L - 6, y: y(t) + 4, "text-anchor": "end" }, `${t}%`));
+    }
+    const fmtM = m => new Date(m + "-15T12:00:00Z").toLocaleString("en-US", { month: "short", year: "2-digit", timeZone: "UTC" });
+    const every = Math.ceil(all.length / 7);
+    all.forEach((m, i) => { if (i % every === 0 || i === all.length - 1 && (all.length - 1) % every > every / 2)
+      svg.append(svgEl("text", { x: x(m), y: H - 8, "text-anchor": "middle" }, fmtM(m))); });
+    // break the line across months with too little data
+    let d = "", prev = null;
+    for (const p of pts) {
+      const gap = prev && all.indexOf(p.key) - all.indexOf(prev.key) > 1;
+      d += `${!prev || gap ? "M" : "L"}${x(p.key).toFixed(1)},${y(p.value).toFixed(1)}`;
+      prev = p;
+    }
+    svg.append(svgEl("path", { d, fill: "none", stroke: "var(--series-1)", "stroke-width": 2, "stroke-linejoin": "round", "stroke-linecap": "round" }));
+    const last = pts[pts.length - 1];
+    svg.append(svgEl("circle", { cx: x(last.key), cy: y(last.value), r: 4, fill: "var(--series-1)", stroke: "var(--surface)", "stroke-width": 2 }));
+    svg.append(svgEl("text", { x: x(last.key) - 6, y: y(last.value) - 9, "text-anchor": "end", class: "lbl-strong" }, pct(last.value)));
+    const cross = svgEl("line", { y1: T, y2: T + ih, stroke: "var(--axis)", "stroke-width": 1, visibility: "hidden" });
+    const dot = svgEl("circle", { r: 4, fill: "var(--series-1)", stroke: "var(--surface)", "stroke-width": 2, visibility: "hidden" });
+    const hit = svgEl("rect", { class: "hit", x: L, y: T, width: iw, height: ih, tabindex: 0 });
+    const pick = e => {
+      const box = svg.getBoundingClientRect(), px = ((e.clientX - box.left) / box.width) * W;
+      return pts.reduce((a, b) => Math.abs(x(b.key) - px) < Math.abs(x(a.key) - px) ? b : a);
+    };
+    const show = (e, p) => {
+      cross.setAttribute("x1", x(p.key)); cross.setAttribute("x2", x(p.key)); cross.setAttribute("visibility", "visible");
+      dot.setAttribute("cx", x(p.key)); dot.setAttribute("cy", y(p.value)); dot.setAttribute("visibility", "visible");
+      showTip(e, pct(p.value), ` on time · ${fmtM(p.key)} · ${p.n} trips · median ${signed(p.median)} min`);
+    };
+    hit.addEventListener("pointermove", e => show(e, pick(e)));
+    hit.addEventListener("focus", e => show(e, last));
+    const off = () => { hideTip(); cross.setAttribute("visibility", "hidden"); dot.setAttribute("visibility", "hidden"); };
+    hit.addEventListener("pointerleave", off); hit.addEventListener("blur", off);
+    svg.append(cross, dot, hit);
+    host.replaceChildren(svg);
+  }
+
+  // ---- table ----------------------------------------------------------
+  function renderTable(rows) {
+    const byTrain = new Map();
+    for (const l of rows) {
+      const k = `${l[1]}|${depMin(l)}`;           // same train, same timetable slot
+      if (!byTrain.has(k)) byTrain.set(k, []);
+      byTrain.get(k).push(l);
+    }
+    const data = [...byTrain.values()].map(ls => {
+      const s = stats(ls), f = ls[ls.length - 1];
+      const arrs = ls.filter(l => !l[8] && arrDelay(l) != null).map(l => arrMin(l) + arrDelay(l));
+      return {
+        train: f[1], name: index.trains[f[1]] || "", dep: depMin(f), arr: arrMin(f), trips: s.measured,
+        rate: s.rate, median: s.median, p90: s.p90, worst: s.ds.length ? Math.max(...s.ds) : null,
+        typical: arrs.length ? quant(arrs, 0.5) : null, canceled: s.canceled,
+        days: [...new Set(ls.map(l => dowOf(l[0])))].sort().map(d => DOW[d][0] + DOW[d][1]).join(" "),
+      };
+    }).filter(r => r.trips || r.canceled);
+    const cols = [
+      { k: "train", t: "Train", f: r => { const s = el("span"); s.append(el("span", { class: "trn" }, r.train), document.createTextNode(" ")); return s; } },
+      { k: "name", t: "Route", f: r => r.name },
+      { k: "dep", t: `Departs ${state.dir === 0 ? HOME : state.station}`, f: r => clock(r.dep), c: "t" },
+      { k: "arr", t: `Due ${state.dir === 0 ? state.station : HOME}`, f: r => clock(r.arr), c: "t" },
+      { k: "typical", t: "Typical arrival", f: r => r.typical == null ? "–" : clock(r.typical), c: "t" },
+      { k: "trips", t: "Trips", f: r => String(r.trips) },
+      { k: "rate", t: "On time", f: r => { const s = el("span", { class: `pill ${rateClass(r.rate)}` }, pct(r.rate)); return s; } },
+      { k: "median", t: "Median", f: r => signed(r.median) },
+      { k: "p90", t: "90th pct", f: r => signed(r.p90) },
+      { k: "worst", t: "Worst", f: r => signed(r.worst) },
+      { k: "canceled", t: "Canceled", f: r => String(r.canceled) },
+    ];
+    const tbl = $("tbl");
+    if (!data.length) { tbl.replaceChildren(); tbl.append(el("caption", { class: "empty" }, "No trips match these filters.")); return; }
+    data.sort((a, b) => {
+      const va = a[sortKey], vb = b[sortKey];
+      const r = va == null ? 1 : vb == null ? -1 : typeof va === "string" ? va.localeCompare(vb) : va - vb;
+      return sortAsc ? r : -r;
+    });
+    const thead = el("thead"), tr = el("tr");
+    for (const c of cols) {
+      const th = el("th", { scope: "col", tabindex: 0 }, c.t);
+      if (c.k === sortKey) th.setAttribute("aria-sort", sortAsc ? "ascending" : "descending");
+      const go = () => { sortAsc = sortKey === c.k ? !sortAsc : true; sortKey = c.k; renderTable(rows); };
+      th.addEventListener("click", go);
+      th.addEventListener("keydown", e => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); go(); } });
+      tr.append(th);
+    }
+    thead.append(tr);
+    const tbody = el("tbody");
+    for (const r of data) {
+      const row = el("tr");
+      for (const c of cols) {
+        const td = el("td", c.c ? { class: c.c } : {});
+        const v = c.f(r);
+        typeof v === "string" ? (td.textContent = v) : td.append(v);
+        if (c.k === "train") td.title = `Runs: ${r.days}`;
+        row.append(td);
+      }
+      tbody.append(row);
+    }
+    tbl.replaceChildren(thead, tbody);
+  }
+
+  // ---- main -------------------------------------------------------------
+  function update() {
+    store.set("state", state);
+    const base = baseRows();
+    renderControls(base);
+    const rows = filtered(base);
+    const s = stats(rows);
+    renderKpis(s, rows);
+    renderHist(s);
+    renderTrend(rows);
+    renderDow(rows);
+    renderHour(rows);
+    renderTable(rows);
+  }
+
+  async function selectStation(code) {
+    state.station = code;
+    state.trains = null;
+    $("app").classList.add("loading");
+    try { legs = await loadStation(code); }
+    catch (e) { legs = []; $("routeLine").textContent = `Couldn't load data for ${code}. ${e.message}`; }
+    $("app").classList.remove("loading");
+    update();
+  }
+
+  async function init() {
+    try { index = await loadJSON("data/index.json"); }
+    catch (e) { $("routeLine").textContent = `Couldn't load the data index. ${e.message}`; return; }
+    const pinned = ["WAS", "NYP", "ALX", "PHL", "BAL", "LYH", "RNK", "BOS"];
+    const st = [...index.stations].sort((a, b) => {
+      const pa = pinned.indexOf(a.code), pb = pinned.indexOf(b.code);
+      if (pa !== pb) return (pa < 0 ? 99 : pa) - (pb < 0 ? 99 : pb);
+      return a.name.localeCompare(b.name);
+    });
+    const sel = $("station");
+    sel.replaceChildren(...st.map(s => el("option", { value: s.code }, `${s.name}${s.state ? ", " + s.state : ""} (${s.code})`)));
+    if (!st.some(s => s.code === state.station)) state.station = st[0]?.code || "WAS";
+    sel.value = state.station;
+    sel.addEventListener("change", () => selectStation(sel.value));
+    for (const id of ["range", "measure", "thr"]) {
+      const c = $(id);
+      c.value = String(state[id]);
+      c.addEventListener("change", () => { state[id] = id === "thr" ? Number(c.value) : c.value; update(); });
+    }
+    const gen = new Date(index.generated_at);
+    $("stamp").textContent = `Data ${index.first_date} to ${index.last_date} · updated ${gen.toLocaleString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}`;
+    await selectStation(state.station);
+  }
+  init();
+})();
+</script>
