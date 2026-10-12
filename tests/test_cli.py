@@ -29,8 +29,13 @@ def test_collect_keeps_only_cvs_runs_and_tracks_trains(tmp_path, stations, cresc
     c = make(tmp_path, stations, {(d, 19): crescent, (d, 67): no_cvs, (d, 5): FetchError("boom")})
     assert c.collect([d], [19, 67, 5, 99]) == 1
     assert c.failures == 1
-    assert json.loads((tmp_path / "trains.json").read_text()) == {"19": {"name": "Crescent", "first": "2026-10-10", "last": "2026-10-10"}}
+    assert c.last_seen == {19: "2026-10-10"}
     assert (tmp_path / "stops" / "2026" / "2026-10.csv").exists()
+    # a fresh collector rebuilds what it knows from the stored CSVs
+    again = make(tmp_path, stations, {})
+    assert again.known_numbers(active_since=date(2026, 10, 1)) == {19}
+    assert again.known_numbers(active_since=date(2026, 10, 11)) == set()
+    assert "2026-10-10_AMTK_19" in again.stored_ids
 
 
 def test_collect_skip_stored(tmp_path, stations, crescent):

@@ -2,7 +2,6 @@
 from __future__ import annotations
 
 import argparse
-import json
 import logging
 import sys
 import time
@@ -29,15 +28,18 @@ class Collector:
                  sleep: Callable[[float], None] = time.sleep):
         self.data_dir = data_dir
         self.stops_dir = data_dir / "stops"
-        self.trains_path = data_dir / "trains.json"
         self.stations = Stations(data_dir / "stations.json")
         self.client = client or AsmClient(fetch)
         self.fetch = fetch
         self.delay = delay
         self.sleep = sleep
-        self.trains: dict[str, dict[str, str]] = (
-            json.loads(self.trains_path.read_text()) if self.trains_path.exists() else {})
         self.failures = 0
+        # Known train numbers and stored runs come from the CSVs themselves, so
+        # concurrent collector and backfill runs never conflict on a shared index.
+        self.last_seen: dict[int, str] = {}
+        self.stored_ids: set[str] = set()
+        for r in storage.iter_all(self.stops_dir):
+            self._note(r)
 
     # --- fetching -------------------------------------------------------
     def fetch_run(self, run_date: date, num: int) -> list[StopRow] | None:
@@ -57,7 +59,7 @@ class Collector:
 
     def collect(self, dates: Iterable[date], nums: Iterable[int], skip_stored: bool = False) -> int:
         nums = sorted(set(nums))
-        stored = self._stored_ids() if skip_stored else set()
+        stored = self.stored_ids if skip_stored else set()
         found: list[StopRow] = []
         for d in dates:
             for n in nums:
@@ -103,25 +105,21 @@ class Collector:
         return nums
 
     # --- bookkeeping ----------------------------------------------------
-    def _stored_ids(self) -> set[str]:
-        return {r.train_id for r in storage.iter_all(self.stops_dir)}
+    def _note(self, r: StopRow) -> None:
+        self.stored_ids.add(r.train_id)
+        if r.origin_date > self.last_seen.get(r.train_num, ""):
+            self.last_seen[r.train_num] = r.origin_date
 
     def _save(self, rows: list[StopRow]) -> int:
         if not rows:
             return 0
         n = storage.upsert(self.stops_dir, rows)
         for r in rows:
-            t = self.trains.setdefault(str(r.train_num), {"name": r.train_name, "first": r.origin_date, "last": r.origin_date})
-            t["name"] = r.train_name or t["name"]
-            t["first"] = min(t["first"], r.origin_date)
-            t["last"] = max(t["last"], r.origin_date)
-        self.trains = dict(sorted(self.trains.items(), key=lambda kv: int(kv[0])))
-        self.trains_path.parent.mkdir(parents=True, exist_ok=True)
-        self.trains_path.write_text(json.dumps(self.trains, indent=1) + "\n")
+            self._note(r)
         return n
 
     def known_numbers(self, active_since: date | None = None) -> set[int]:
-        return {int(n) for n, t in self.trains.items() if active_since is None or t["last"] >= active_since.isoformat()}
+        return {n for n, last in self.last_seen.items() if active_since is None or last >= active_since.isoformat()}
 
 
 def daterange(start: date, end: date) -> list[date]:
