@@ -55,7 +55,7 @@ All in one row; they apply to everything on the page:
 
 - direction (from CVS / to CVS)
 - other station
-- date range (30 d, 90 d, 12 mo, 3 y, all, or a custom From–To range)
+- date range (30 d, 90 d, 12 mo, 3 y, all, or a custom range picked on one calendar: click a start day, then an end day)
 - delay measured at arrival or departure
 - on-time threshold (5, 10, 15 or 30 min; 15 is Amtrak's customer standard)
 - days (all, weekdays, weekends, or individual days)

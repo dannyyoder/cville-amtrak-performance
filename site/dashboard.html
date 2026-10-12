@@ -58,12 +58,32 @@ h2 { font: 600 1rem/1.2 var(--font-display); letter-spacing: 0.02em; text-transf
 .filters { display: flex; flex-wrap: wrap; gap: 14px 22px; align-items: flex-end; padding: 14px 16px; background: var(--surface); border: 1px solid var(--line); border-radius: var(--r); }
 .f { display: grid; gap: 5px; min-width: 0; }
 .f > label, .f > .lbl { font: 600 11px/1 var(--font-display); text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted); }
-select, input[type="date"] { font: 500 14px var(--font-body); color: var(--ink); background: var(--bg); border: 1px solid var(--line); border-radius: 5px; padding: 6px 28px 6px 9px; max-width: 100%; }
-input[type="date"] { padding-right: 9px; font-variant-numeric: tabular-nums; }
-.dates { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 8px; }
-.dates .f { gap: 5px; }
-.dates .sep { color: var(--muted); padding-bottom: 7px; }
-input:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+select { font: 500 14px var(--font-body); color: var(--ink); background: var(--bg); border: 1px solid var(--line); border-radius: 5px; padding: 6px 28px 6px 9px; max-width: 100%; }
+
+/* Custom date range: a button that opens one calendar; click a start day, then an end day. */
+.picker { position: relative; }
+.range-btn { font: 500 14px var(--font-body); color: var(--ink); background: var(--bg); border: 1px solid var(--line); border-radius: 5px; padding: 6px 10px; cursor: pointer; display: inline-flex; align-items: center; gap: 8px; white-space: nowrap; max-width: 100%; }
+.range-btn:hover { border-color: var(--accent); }
+.range-btn svg { flex: none; }
+.cal { position: absolute; top: calc(100% + 6px); left: 0; z-index: 10; width: 304px; max-width: calc(100vw - 32px); background: var(--surface); border: 1px solid var(--line); border-radius: 8px; box-shadow: 0 10px 28px rgba(0, 0, 0, 0.16); padding: 12px; display: grid; gap: 10px; }
+.cal-head { display: flex; align-items: center; gap: 6px; }
+.cal-head select { padding: 4px 24px 4px 7px; font-size: 13px; min-width: 0; }
+.cal-head .cal-month { flex: 1; }
+.cal-nav { flex: none; width: 30px; height: 30px; border: 1px solid var(--line); border-radius: 5px; background: var(--bg); color: var(--ink); cursor: pointer; font: 600 14px var(--font-body); }
+.cal-nav:disabled { opacity: 0.35; cursor: default; }
+.cal-grid { display: grid; grid-template-columns: repeat(7, 1fr); row-gap: 2px; }
+.cal-dow { font: 600 11px/1 var(--font-display); letter-spacing: 0.06em; color: var(--muted); text-align: center; padding: 4px 0 6px; }
+.day { aspect-ratio: 1; min-width: 0; border: 0; padding: 0; background: transparent; color: var(--ink); font: 500 13px var(--font-data); cursor: pointer; }
+.day:hover:not(:disabled) { box-shadow: inset 0 0 0 1.5px var(--accent); border-radius: 6px; }
+.day.in { background: var(--accent-wash); }
+.day.start, .day.end { background: var(--accent); color: var(--surface); }
+.day.start { border-radius: 6px 0 0 6px; }
+.day.end { border-radius: 0 6px 6px 0; }
+.day.start.end { border-radius: 6px; }
+.day:disabled { color: var(--muted); opacity: 0.35; cursor: default; }
+.day:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; border-radius: 6px; position: relative; z-index: 1; }
+.cal-foot { display: flex; justify-content: space-between; align-items: center; gap: 10px; font-size: 13px; color: var(--ink-2); min-height: 26px; }
+.cal-foot button { font: 500 13px var(--font-body); color: var(--accent); background: none; border: 0; cursor: pointer; padding: 4px 2px; }
 .seg { display: inline-flex; flex-wrap: wrap; gap: 4px; }
 .chip { font: 500 13px/1 var(--font-body); color: var(--ink-2); background: transparent; border: 1px solid var(--line); border-radius: 999px; padding: 6px 10px; cursor: pointer; }
 .chip:hover { background: var(--accent-wash); }
@@ -154,16 +174,10 @@ td .trn { font: 600 15px var(--font-data); }
           <option value="custom">Custom range…</option>
         </select>
       </div>
-      <div class="dates" id="customRange" hidden>
-        <div class="f">
-          <label for="from">From</label>
-          <input type="date" id="from">
-        </div>
-        <span class="sep" aria-hidden="true">–</span>
-        <div class="f">
-          <label for="to">To</label>
-          <input type="date" id="to">
-        </div>
+      <div class="f picker" id="customRange" hidden>
+        <span class="lbl" id="rangeLbl">Custom dates</span>
+        <button type="button" class="range-btn" id="rangeBtn" aria-haspopup="dialog" aria-expanded="false" aria-controls="cal"></button>
+        <div class="cal" id="cal" role="dialog" aria-label="Choose a date range" hidden></div>
       </div>
       <div class="f">
         <label for="measure">Delay measured at</label>
@@ -781,6 +795,180 @@ td .trn { font: 600 15px var(--font-data); }
     renderTable(rows);
   }
 
+  // ---- custom date range picker ------------------------------------------
+  // One calendar: the first click sets the start, the second the end (either order).
+  // Only dates between index.first_date and index.last_date can be picked.
+  const MONTHS = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
+  const parseISO = s => new Date(s + "T00:00:00Z");
+  const toISO = d => d.toISOString().slice(0, 10);
+  const addDays = (s, n) => { const d = parseISO(s); d.setUTCDate(d.getUTCDate() + n); return toISO(d); };
+  const addMonths = (s, n) => {
+    const d = parseISO(s), day = d.getUTCDate();
+    d.setUTCDate(1); d.setUTCMonth(d.getUTCMonth() + n);
+    const last = new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth() + 1, 0)).getUTCDate();
+    d.setUTCDate(Math.min(day, last));
+    return toISO(d);
+  };
+  const fmtDate = s => parseISO(s).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric", timeZone: "UTC" });
+  const longDate = s => parseISO(s).toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric", year: "numeric", timeZone: "UTC" });
+  const cal = { y: 0, m: 0, pending: null, hover: null, focus: null };
+
+  function syncCustom() {
+    $("customRange").hidden = state.range !== "custom";
+    const btn = $("rangeBtn");
+    const icon = svgEl("svg", { width: 16, height: 16, viewBox: "0 0 16 16", "aria-hidden": "true" });
+    icon.append(svgEl("rect", { x: 1.5, y: 2.5, width: 13, height: 12, rx: 2, fill: "none", stroke: "currentColor", "stroke-width": 1.4 }),
+      svgEl("line", { x1: 1.5, x2: 14.5, y1: 6, y2: 6, stroke: "currentColor", "stroke-width": 1.4 }),
+      svgEl("line", { x1: 5, x2: 5, y1: 1, y2: 4, stroke: "currentColor", "stroke-width": 1.4, "stroke-linecap": "round" }),
+      svgEl("line", { x1: 11, x2: 11, y1: 1, y2: 4, stroke: "currentColor", "stroke-width": 1.4, "stroke-linecap": "round" }));
+    btn.replaceChildren(icon, document.createTextNode(state.from && state.to ? `${fmtDate(state.from)} – ${fmtDate(state.to)}` : "Choose dates"));
+  }
+  const calOpen = () => !$("cal").hidden;
+  function openCal() {
+    const c = $("cal"), btn = $("rangeBtn");
+    const anchor = state.to || index.last_date;
+    cal.y = +anchor.slice(0, 4); cal.m = +anchor.slice(5, 7) - 1;
+    cal.pending = null; cal.hover = null; cal.focus = anchor;
+    c.hidden = false; c.style.left = "0px";
+    btn.setAttribute("aria-expanded", "true");
+    renderCal();
+    const r = c.getBoundingClientRect();                     // keep the popover on screen
+    if (r.right > window.innerWidth - 8) c.style.left = `${Math.min(0, window.innerWidth - 8 - r.right)}px`;
+    focusDay();
+  }
+  function closeCal(returnFocus) {
+    $("cal").hidden = true;
+    $("rangeBtn").setAttribute("aria-expanded", "false");
+    if (returnFocus) $("rangeBtn").focus();
+  }
+  function shownRange() {
+    if (cal.pending) {
+      const other = cal.hover || cal.pending;
+      return cal.pending < other ? [cal.pending, other] : [other, cal.pending];
+    }
+    return [state.from, state.to];
+  }
+  function shadeDays() {
+    const [a, b] = shownRange();
+    for (const d of $("cal").querySelectorAll(".day[data-d]")) {
+      const v = d.dataset.d;
+      d.classList.toggle("start", v === a);
+      d.classList.toggle("end", v === b);
+      d.classList.toggle("in", !!a && !!b && v > a && v < b);
+      d.setAttribute("aria-pressed", String(v === a || v === b));
+    }
+    $("calHint").textContent = cal.pending
+      ? `${fmtDate(cal.pending)} – pick an end date`
+      : "Pick a start date";
+  }
+  function focusDay() {
+    $("cal").querySelector(`.day[data-d="${cal.focus}"]`)?.focus();
+  }
+  function renderCal() {
+    const first = index.first_date, last = index.last_date;
+    const fy = +first.slice(0, 4), ly = +last.slice(0, 4);
+    const fm = fy * 12 + (+first.slice(5, 7) - 1), lm = ly * 12 + (+last.slice(5, 7) - 1);
+    const cur = Math.min(lm, Math.max(fm, cal.y * 12 + cal.m));
+    cal.y = Math.floor(cur / 12); cal.m = cur % 12;
+
+    const head = el("div", { class: "cal-head" });
+    const prev = el("button", { type: "button", class: "cal-nav", "aria-label": "Previous month" }, "‹");
+    const next = el("button", { type: "button", class: "cal-nav", "aria-label": "Next month" }, "›");
+    prev.disabled = cur <= fm; next.disabled = cur >= lm;
+    prev.addEventListener("click", () => { cal.m--; if (cal.m < 0) { cal.m = 11; cal.y--; } renderCal(); });
+    next.addEventListener("click", () => { cal.m++; if (cal.m > 11) { cal.m = 0; cal.y++; } renderCal(); });
+    const mSel = el("select", { class: "cal-month", "aria-label": "Month" });
+    MONTHS.forEach((name, i) => { const o = el("option", { value: i }, name); o.disabled = cal.y * 12 + i < fm || cal.y * 12 + i > lm; mSel.append(o); });
+    mSel.value = String(cal.m);
+    mSel.addEventListener("change", () => { cal.m = +mSel.value; renderCal(); mSel.focus(); });
+    const ySel = el("select", { "aria-label": "Year" });
+    for (let y = fy; y <= ly; y++) ySel.append(el("option", { value: y }, String(y)));
+    ySel.value = String(cal.y);
+    ySel.addEventListener("change", () => { cal.y = +ySel.value; renderCal(); $("cal").querySelector('select[aria-label="Year"]').focus(); });
+    head.append(prev, mSel, ySel, next);
+
+    const grid = el("div", { class: "cal-grid", role: "group", "aria-label": `${MONTHS[cal.m]} ${cal.y}` });
+    for (const d of ["Su", "Mo", "Tu", "We", "Th", "Fr", "Sa"]) grid.append(el("span", { class: "cal-dow", "aria-hidden": "true" }, d));
+    const firstDow = new Date(Date.UTC(cal.y, cal.m, 1)).getUTCDay();
+    const days = new Date(Date.UTC(cal.y, cal.m + 1, 0)).getUTCDate();
+    for (let i = 0; i < firstDow; i++) grid.append(el("span"));
+    const monthPrefix = `${cal.y}-${String(cal.m + 1).padStart(2, "0")}-`;
+    if (!cal.focus || !cal.focus.startsWith(monthPrefix)) {
+      const pick = [state.to, state.from, last, first].find(v => v && v.startsWith(monthPrefix));
+      cal.focus = pick || (monthPrefix + "01" < first ? first : monthPrefix + "01");
+    }
+    for (let n = 1; n <= days; n++) {
+      const v = monthPrefix + String(n).padStart(2, "0");
+      const b = el("button", { type: "button", class: "day", "data-d": v, "aria-label": longDate(v), tabindex: v === cal.focus ? 0 : -1 }, String(n));
+      b.disabled = v < first || v > last;
+      grid.append(b);
+    }
+    const foot = el("div", { class: "cal-foot" });
+    const cancel = el("button", { type: "button" }, "Cancel");
+    cancel.addEventListener("click", () => closeCal(true));
+    foot.append(el("span", { id: "calHint", "aria-live": "polite" }), cancel);
+    $("cal").replaceChildren(head, grid, foot);
+    shadeDays();
+  }
+  function chooseDay(v) {
+    if (!cal.pending) { cal.pending = v; cal.hover = null; cal.focus = v; shadeDays(); return; }
+    [state.from, state.to] = cal.pending <= v ? [cal.pending, v] : [v, cal.pending];
+    cal.pending = null;
+    closeCal(true);
+    syncCustom();
+    update();
+  }
+  function moveFocus(v) {
+    v = v < index.first_date ? index.first_date : v > index.last_date ? index.last_date : v;
+    cal.focus = v;
+    if (cal.pending) cal.hover = v;
+    const y = +v.slice(0, 4), m = +v.slice(5, 7) - 1;
+    if (y !== cal.y || m !== cal.m) { cal.y = y; cal.m = m; renderCal(); }
+    else {
+      for (const d of $("cal").querySelectorAll(".day[data-d]")) d.tabIndex = d.dataset.d === v ? 0 : -1;
+      shadeDays();
+    }
+    focusDay();
+  }
+  function setupRangePicker() {
+    const c = $("cal"), btn = $("rangeBtn");
+    btn.addEventListener("click", () => calOpen() ? closeCal(false) : openCal());
+    c.addEventListener("click", e => {
+      const d = e.target.closest(".day[data-d]");
+      if (d && !d.disabled) chooseDay(d.dataset.d);
+    });
+    c.addEventListener("pointerover", e => {
+      const d = e.target.closest(".day[data-d]");
+      if (cal.pending && d && !d.disabled && cal.hover !== d.dataset.d) { cal.hover = d.dataset.d; shadeDays(); }
+    });
+    c.addEventListener("keydown", e => {
+      if (e.key === "Escape") { e.preventDefault(); closeCal(true); return; }
+      const d = e.target.closest(".day[data-d]");
+      if (!d) return;
+      const step = { ArrowLeft: -1, ArrowRight: 1, ArrowUp: -7, ArrowDown: 7 }[e.key];
+      if (step) { e.preventDefault(); moveFocus(addDays(d.dataset.d, step)); }
+      else if (e.key === "PageUp" || e.key === "PageDown") { e.preventDefault(); moveFocus(addMonths(d.dataset.d, e.key === "PageUp" ? -1 : 1)); }
+    });
+    document.addEventListener("pointerdown", e => {
+      if (calOpen() && !$("customRange").contains(e.target)) closeCal(false);
+    });
+    $("range").addEventListener("change", () => {
+      if (state.range === "custom") {
+        if (!(state.from && state.to)) {           // open on the last 90 days
+          state.from = addDays(index.last_date, -89);
+          state.to = index.last_date;
+          update();
+        }
+        syncCustom();
+        openCal();
+      } else {
+        closeCal(false);
+        syncCustom();
+      }
+    });
+    syncCustom();
+  }
+
   async function selectStation(code) {
     state.station = code;
     state.trains = null;
@@ -810,33 +998,7 @@ td .trn { font: 600 15px var(--font-data); }
       c.value = String(state[id]);
       c.addEventListener("change", () => { state[id] = id === "thr" ? Number(c.value) : c.value; update(); });
     }
-    // Custom range: From/To pickers bounded by the data, shown only for "Custom range…".
-    const from = $("from"), to = $("to"), range = $("range");
-    for (const c of [from, to]) { c.min = index.first_date; c.max = index.last_date; }
-    const syncCustom = () => {
-      $("customRange").hidden = state.range !== "custom";
-      from.value = state.from || ""; to.value = state.to || "";
-    };
-    range.addEventListener("change", () => {
-      if (state.range === "custom" && !(state.from && state.to)) {
-        // start from the last 90 days so the picker opens on something sensible
-        const d = new Date(index.last_date + "T12:00:00Z");
-        d.setUTCDate(d.getUTCDate() - 89);
-        state.from = d.toISOString().slice(0, 10);
-        state.to = index.last_date;
-        update();
-      }
-      syncCustom();
-    });
-    const clampDate = v => !v ? null : v < index.first_date ? index.first_date : v > index.last_date ? index.last_date : v;
-    for (const [c, k] of [[from, "from"], [to, "to"]]) {
-      c.addEventListener("change", () => {
-        state[k] = clampDate(c.value);
-        if (state.from && state.to && state.from > state.to) [state.from, state.to] = [state.to, state.from];
-        syncCustom(); update();
-      });
-    }
-    syncCustom();
+    setupRangePicker();
     const gen = new Date(index.generated_at);
     $("stamp").textContent = `Data ${index.first_date} to ${index.last_date} · updated ${gen.toLocaleString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}`;
     await selectStation(state.station);
