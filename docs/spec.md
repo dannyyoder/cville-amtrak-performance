@@ -1,7 +1,7 @@
 # Charlottesville Amtrak Performance — Design Spec
 
 **Date:** 2026-10-12
-**Status:** Implemented (v1). Replaces the train-arrival-alerts design in `docs/archive/`.
+**Status:** Implemented (v1).
 
 ## 1. Purpose
 

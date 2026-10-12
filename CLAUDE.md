@@ -3,7 +3,7 @@
 Personal project: collect on-time data for every Amtrak train stopping at Charlottesville (CVS) and show it in a filterable dashboard (also embedded in Home Assistant via a Webpage card).
 
 ## Source of truth
-- Spec: `docs/spec.md`. `docs/archive/` holds the retired train-alerts project; don't build from it.
+- Spec: `docs/spec.md`.
 
 ## Layout
 - `collector/`: stdlib-only Python. `asm.py` (fetch + parse transitdocs), `storage.py` (monthly CSVs), `build.py` (dashboard JSON), `cli.py` (`python -m collector update|discover|backfill|build|site`).

@@ -29,4 +29,3 @@ In Home Assistant, edit a dashboard and add a **Webpage** card with that URL. Th
 ## Docs
 
 - Spec: [`docs/spec.md`](docs/spec.md)
-- Retired train-alerts design: [`docs/archive/`](docs/archive/)
