@@ -1,0 +1,7 @@
+__pycache__/
+*.pyc
+.pytest_cache/
+.venv/
+apps/train_alerts/announced.json
+.DS_Store
+secrets.yaml
