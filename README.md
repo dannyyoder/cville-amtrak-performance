@@ -14,7 +14,7 @@ python -m http.server -d _site                      # view at http://localhost:8
 
 ## Workflows
 
-- **Collect and publish** runs at about 7 AM and 7 PM Eastern. It fetches recent runs, commits `data/`, and deploys the dashboard to GitHub Pages once Pages is enabled (see below).
+- **Collect and publish** runs at about 7 AM and 7 PM Eastern. It fetches recent runs, commits `data/`, and redeploys the dashboard to GitHub Pages.
 - **Backfill history** is run by hand with a start and end date. Run it about one year at a time; each run stops after roughly 5 hours and logs where to resume.
 - **Tests** runs pytest.
 
