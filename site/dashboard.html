@@ -58,7 +58,12 @@ h2 { font: 600 1rem/1.2 var(--font-display); letter-spacing: 0.02em; text-transf
 .filters { display: flex; flex-wrap: wrap; gap: 14px 22px; align-items: flex-end; padding: 14px 16px; background: var(--surface); border: 1px solid var(--line); border-radius: var(--r); }
 .f { display: grid; gap: 5px; min-width: 0; }
 .f > label, .f > .lbl { font: 600 11px/1 var(--font-display); text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted); }
-select { font: 500 14px var(--font-body); color: var(--ink); background: var(--bg); border: 1px solid var(--line); border-radius: 5px; padding: 6px 28px 6px 9px; max-width: 100%; }
+select, input[type="date"] { font: 500 14px var(--font-body); color: var(--ink); background: var(--bg); border: 1px solid var(--line); border-radius: 5px; padding: 6px 28px 6px 9px; max-width: 100%; }
+input[type="date"] { padding-right: 9px; font-variant-numeric: tabular-nums; }
+.dates { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 8px; }
+.dates .f { gap: 5px; }
+.dates .sep { color: var(--muted); padding-bottom: 7px; }
+input:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 .seg { display: inline-flex; flex-wrap: wrap; gap: 4px; }
 .chip { font: 500 13px/1 var(--font-body); color: var(--ink-2); background: transparent; border: 1px solid var(--line); border-radius: 999px; padding: 6px 10px; cursor: pointer; }
 .chip:hover { background: var(--accent-wash); }
@@ -146,7 +151,19 @@ td .trn { font: 600 15px var(--font-data); }
           <option value="365">Last 12 months</option>
           <option value="1095">Last 3 years</option>
           <option value="all">All data</option>
+          <option value="custom">Custom range…</option>
         </select>
+      </div>
+      <div class="dates" id="customRange" hidden>
+        <div class="f">
+          <label for="from">From</label>
+          <input type="date" id="from">
+        </div>
+        <span class="sep" aria-hidden="true">–</span>
+        <div class="f">
+          <label for="to">To</label>
+          <input type="date" id="to">
+        </div>
       </div>
       <div class="f">
         <label for="measure">Delay measured at</label>
@@ -293,15 +310,20 @@ td .trn { font: 600 15px var(--font-data); }
     return cache.get(code);
   }
 
-  function baseRows() {
-    const dirRows = legs.filter(l => l[2] === state.dir);
-    let since = null;
-    if (state.range !== "all" && index.last_date) {
-      const d = new Date(index.last_date + "T12:00:00Z");
-      d.setUTCDate(d.getUTCDate() - Number(state.range) + 1);
-      since = d.toISOString().slice(0, 10);
+  // The [first, last] dates (inclusive, YYYY-MM-DD) the date filter selects; null means unbounded.
+  function dateWindow() {
+    if (state.range === "all" || !index.last_date) return [null, null];
+    if (state.range === "custom") {
+      const a = state.from || null, b = state.to || null;
+      return a && b && a > b ? [b, a] : [a, b];
     }
-    return dirRows.filter(l => !since || l[0] >= since);
+    const d = new Date(index.last_date + "T12:00:00Z");
+    d.setUTCDate(d.getUTCDate() - Number(state.range) + 1);
+    return [d.toISOString().slice(0, 10), null];
+  }
+  function baseRows() {
+    const [since, until] = dateWindow();
+    return legs.filter(l => l[2] === state.dir && (!since || l[0] >= since) && (!until || l[0] <= until));
   }
   function filtered(rows) {
     const days = new Set(state.days), tods = TOD.filter(t => state.tod.includes(t.id));
@@ -788,6 +810,33 @@ td .trn { font: 600 15px var(--font-data); }
       c.value = String(state[id]);
       c.addEventListener("change", () => { state[id] = id === "thr" ? Number(c.value) : c.value; update(); });
     }
+    // Custom range: From/To pickers bounded by the data, shown only for "Custom range…".
+    const from = $("from"), to = $("to"), range = $("range");
+    for (const c of [from, to]) { c.min = index.first_date; c.max = index.last_date; }
+    const syncCustom = () => {
+      $("customRange").hidden = state.range !== "custom";
+      from.value = state.from || ""; to.value = state.to || "";
+    };
+    range.addEventListener("change", () => {
+      if (state.range === "custom" && !(state.from && state.to)) {
+        // start from the last 90 days so the picker opens on something sensible
+        const d = new Date(index.last_date + "T12:00:00Z");
+        d.setUTCDate(d.getUTCDate() - 89);
+        state.from = d.toISOString().slice(0, 10);
+        state.to = index.last_date;
+        update();
+      }
+      syncCustom();
+    });
+    const clampDate = v => !v ? null : v < index.first_date ? index.first_date : v > index.last_date ? index.last_date : v;
+    for (const [c, k] of [[from, "from"], [to, "to"]]) {
+      c.addEventListener("change", () => {
+        state[k] = clampDate(c.value);
+        if (state.from && state.to && state.from > state.to) [state.from, state.to] = [state.to, state.from];
+        syncCustom(); update();
+      });
+    }
+    syncCustom();
     const gen = new Date(index.generated_at);
     $("stamp").textContent = `Data ${index.first_date} to ${index.last_date} · updated ${gen.toLocaleString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}`;
     await selectStation(state.station);
