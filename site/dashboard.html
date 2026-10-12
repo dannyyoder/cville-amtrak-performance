@@ -464,7 +464,13 @@ td .trn { font: 600 15px var(--font-data); }
     const pts = rateBy(rows, l => l[0].slice(0, 7), months, k => k, 5).filter(p => p.value != null);
     if (pts.length < 2) return empty(host, pts.length ? "Only one month of data in this range." : "No trips match these filters.");
     const W = 520, H = 210, L = 36, R = 12, T = 14, B = 26, iw = W - L - R, ih = H - T - B;
-    const all = months.filter(m => m >= pts[0].key && m <= pts[pts.length - 1].key);
+    const all = [];                                 // every calendar month in span, so gaps show
+    for (let [y, m] = pts[0].key.split("-").map(Number); ; m++) {
+      if (m > 12) { y++; m = 1; }
+      const k = `${y}-${String(m).padStart(2, "0")}`;
+      all.push(k);
+      if (k >= pts[pts.length - 1].key) break;
+    }
     const x = m => L + (all.length === 1 ? iw / 2 : (all.indexOf(m) / (all.length - 1)) * iw);
     const y = v => T + ih - (v / 100) * ih;
     const svg = svgEl("svg", { class: "chart", viewBox: `0 0 ${W} ${H}`, role: "img", "aria-label": "On-time rate by month" });
