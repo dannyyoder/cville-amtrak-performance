@@ -59,12 +59,14 @@ h2 { font: 600 1rem/1.2 var(--font-display); letter-spacing: 0.02em; text-transf
 .f { display: grid; gap: 5px; min-width: 0; }
 .f > label, .f > .lbl, .f-head > label, .f-head > .lbl { font: 600 11px/1 var(--font-display); text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted); }
 /* Filter label row: label plus a "Reset" link that only shows while the filter differs from its default. */
-.f-head { display: flex; align-items: baseline; gap: 8px; min-height: 11px; }
-.reset { font: 500 12px/1 var(--font-body); color: var(--accent); background: none; border: 0; padding: 0; cursor: pointer; text-decoration: underline; text-decoration-color: transparent; text-underline-offset: 2px; }
-.reset:hover { text-decoration-color: currentColor; }
-.reset:focus-visible, .reset-all:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 3px; }
-.filters-foot { flex-basis: 100%; display: flex; justify-content: flex-end; padding-top: 10px; border-top: 1px solid var(--line); }
-.reset-all { font: 500 13px var(--font-body); color: var(--ink-2); background: transparent; border: 1px solid var(--line); border-radius: 5px; padding: 6px 12px; cursor: pointer; display: inline-flex; align-items: center; gap: 6px; }
+.f-head { display: flex; align-items: center; gap: 8px; min-height: 19px; }
+.reset { font: 500 11px/1 var(--font-body); color: var(--accent); background: transparent; border: 1px solid var(--line); border-radius: 4px; padding: 3px 6px; cursor: pointer; }
+.reset:hover:not(:disabled) { border-color: var(--accent); background: var(--accent-wash); }
+.reset:disabled { color: var(--muted); opacity: 0.5; cursor: default; }
+.reset:focus-visible, .reset-all:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.filters-top { flex-basis: 100%; display: flex; justify-content: space-between; align-items: center; gap: 12px; padding-bottom: 12px; border-bottom: 1px solid var(--line); }
+.filters-top h2 { color: var(--ink-2); }
+.reset-all { font: 500 13px var(--font-body); color: var(--accent); background: transparent; border: 1px solid var(--accent); border-radius: 5px; padding: 6px 12px; cursor: pointer; display: inline-flex; align-items: center; gap: 6px; }
 .reset-all:hover:not(:disabled) { color: var(--ink); border-color: var(--accent); background: var(--accent-wash); }
 .reset-all:disabled { opacity: 0.45; cursor: default; }
 select { font: 500 14px var(--font-body); color: var(--ink); background: var(--bg); border: 1px solid var(--line); border-radius: 5px; padding: 6px 28px 6px 9px; max-width: 100%; }
@@ -163,17 +165,21 @@ td .trn { font: 600 15px var(--font-data); }
   </header>
 
   <section class="filters" aria-label="Filters">
+    <div class="filters-top">
+      <h2>Filters</h2>
+      <button type="button" class="reset-all" id="resetAll" disabled>Reset all filters</button>
+    </div>
     <div class="route">
       <div class="f">
-        <span class="lbl">Direction</span>
+        <div class="f-head"><span class="lbl">Direction</span><button type="button" class="reset" data-reset="dir" aria-label="Reset direction">Reset</button></div>
         <div class="seg" id="dir"></div>
       </div>
       <div class="f">
-        <label for="station">Other station</label>
+        <div class="f-head"><label for="station">Other station</label><button type="button" class="reset" data-reset="station" aria-label="Reset other station">Reset</button></div>
         <select id="station"></select>
       </div>
       <div class="f">
-        <div class="f-head"><label for="range">Dates</label><button type="button" class="reset" data-reset="dates" aria-label="Reset dates" hidden>Reset</button></div>
+        <div class="f-head"><label for="range">Dates</label><button type="button" class="reset" data-reset="dates" aria-label="Reset dates">Reset</button></div>
         <select id="range">
           <option value="30">Last 30 days</option>
           <option value="90" selected>Last 90 days</option>
@@ -189,14 +195,14 @@ td .trn { font: 600 15px var(--font-data); }
         <div class="cal" id="cal" role="dialog" aria-label="Choose a date range" hidden></div>
       </div>
       <div class="f">
-        <div class="f-head"><label for="measure">Delay measured at</label><button type="button" class="reset" data-reset="measure" aria-label="Reset delay measured at" hidden>Reset</button></div>
+        <div class="f-head"><label for="measure">Delay measured at</label><button type="button" class="reset" data-reset="measure" aria-label="Reset delay measured at">Reset</button></div>
         <select id="measure">
           <option value="arr">Arrival</option>
           <option value="dep">Departure</option>
         </select>
       </div>
       <div class="f">
-        <div class="f-head"><label for="thr">On time means within</label><button type="button" class="reset" data-reset="thr" aria-label="Reset on-time threshold" hidden>Reset</button></div>
+        <div class="f-head"><label for="thr">On time means within</label><button type="button" class="reset" data-reset="thr" aria-label="Reset on-time threshold">Reset</button></div>
         <select id="thr">
           <option value="5">5 min</option>
           <option value="10">10 min</option>
@@ -206,19 +212,16 @@ td .trn { font: 600 15px var(--font-data); }
       </div>
     </div>
     <div class="f">
-      <div class="f-head"><span class="lbl">Days</span><button type="button" class="reset" data-reset="days" aria-label="Reset days" hidden>Reset</button></div>
+      <div class="f-head"><span class="lbl">Days</span><button type="button" class="reset" data-reset="days" aria-label="Reset days">Reset</button></div>
       <div class="seg" id="days"></div>
     </div>
     <div class="f">
-      <div class="f-head"><span class="lbl">Departure time</span><button type="button" class="reset" data-reset="tod" aria-label="Reset departure time" hidden>Reset</button></div>
+      <div class="f-head"><span class="lbl">Departure time</span><button type="button" class="reset" data-reset="tod" aria-label="Reset departure time">Reset</button></div>
       <div class="seg" id="tod"></div>
     </div>
     <div class="f" style="flex-basis:100%">
-      <div class="f-head"><span class="lbl">Trains</span><button type="button" class="reset" data-reset="trains" aria-label="Reset trains" hidden>Reset</button></div>
+      <div class="f-head"><span class="lbl">Trains</span><button type="button" class="reset" data-reset="trains" aria-label="Reset trains">Reset</button></div>
       <div class="seg" id="trains"></div>
-    </div>
-    <div class="filters-foot">
-      <button type="button" class="reset-all" id="resetAll" disabled>Reset all filters</button>
     </div>
   </section>
 
@@ -607,7 +610,7 @@ td .trn { font: 600 15px var(--font-data); }
     lastRows = rows;
     const host = $("spread"), view = state.spread;
     chips($("spreadView"), [{ v: "box", label: "Box plot" }, { v: "strip", label: "Every trip" }],
-      it => it.v === view, it => { state.spread = it.v; store.set("state", state); renderSpread(lastRows); });
+      it => it.v === view, it => { state.spread = it.v; store.set("state", state); renderSpread(lastRows); syncResets(); });
     const where = state.measure === "arr" ? `arriving at ${state.dir === 0 ? state.station : HOME}` : `leaving ${state.dir === 0 ? HOME : state.station}`;
     $("spreadSub").textContent = `Minutes late ${where}, per train. The shaded band is on time (0–${state.thr} min); early trips also count as on time.`;
     const byTrain = new Map();
@@ -809,8 +812,12 @@ td .trn { font: 600 15px var(--font-data); }
   }
 
   // ---- reset buttons -------------------------------------------------------
-  // Direction and station pick which trips you're looking at, so they aren't reset.
+  // Each filter has its own Reset (disabled while it's at its default); "Reset all filters"
+  // returns the whole page to its default view: CVS -> Washington, last 90 days, everything else open.
+  const DEFAULT_STATION = "WAS";
   const FILTERS = {
+    dir:     { focus: "#dir button",     active: () => state.dir !== 0,                   reset: () => { state.dir = 0; state.trains = null; } },
+    station: { focus: "#station",        active: () => state.station !== DEFAULT_STATION, reset: () => {} },  // applied in afterReset: needs a data load
     dates:   { focus: "#range",          active: () => state.range !== "90",            reset: () => { state.range = "90"; state.from = state.to = null; } },
     measure: { focus: "#measure",        active: () => state.measure !== "arr",         reset: () => { state.measure = "arr"; } },
     thr:     { focus: "#thr",            active: () => state.thr !== 15,                reset: () => { state.thr = 15; } },
@@ -822,27 +829,34 @@ td .trn { font: 600 15px var(--font-data); }
     let n = 0;
     for (const b of document.querySelectorAll(".reset[data-reset]")) {
       const on = FILTERS[b.dataset.reset].active();
-      b.hidden = !on;
+      b.disabled = !on;
       if (on) n++;
     }
     const all = $("resetAll");
-    all.disabled = n === 0;
+    all.disabled = n === 0 && state.spread === "box";   // chart style isn't a filter, but Reset all restores it too
     all.textContent = n ? `Reset all filters (${n})` : "Reset all filters";
   }
-  function afterReset(focusSel) {
+  async function afterReset(focusSel, resetStation) {
     for (const id of ["range", "measure", "thr"]) $(id).value = String(state[id]);
     closeCal(false);
     syncCustom();
-    update();
+    if (resetStation && state.station !== DEFAULT_STATION) {
+      $("station").value = DEFAULT_STATION;
+      await selectStation(DEFAULT_STATION);   // loads that station's trips, then updates
+    } else {
+      update();
+    }
     document.querySelector(focusSel)?.focus();
   }
   function setupResets() {
     for (const b of document.querySelectorAll(".reset[data-reset]")) {
-      b.addEventListener("click", () => { const f = FILTERS[b.dataset.reset]; f.reset(); afterReset(f.focus); });
+      const key = b.dataset.reset;
+      b.addEventListener("click", () => { const f = FILTERS[key]; f.reset(); afterReset(f.focus, key === "station"); });
     }
     $("resetAll").addEventListener("click", () => {
       for (const f of Object.values(FILTERS)) f.reset();
-      afterReset("#range");
+      state.spread = "box";
+      afterReset("#dir button", true);
     });
   }
 

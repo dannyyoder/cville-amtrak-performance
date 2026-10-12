@@ -62,7 +62,7 @@ All in one row; they apply to everything on the page:
 - departure time of day (before 9 AM, 9 AM–3 PM, 3–7 PM, after 7 PM)
 - trains
 
-Each filter shows a **Reset** link next to its label while it differs from its default, and **Reset all filters** (with a count of active filters) restores them all. Direction and station are not reset, since they choose which trips are shown.
+Every filter, including direction and station, has its own **Reset** button next to its label (greyed out while it's already at its default). **Reset all filters**, at the top of the filter panel with a count of active filters, returns the page to its default view: CVS → Washington, last 90 days, arrival delay, 15-minute threshold, all days, times and trains, and the box-plot chart style.
 
 ### Views
 
