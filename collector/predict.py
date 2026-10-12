@@ -93,7 +93,9 @@ class Prediction:
     arr_min: int | None
     on_time: float            # probability of arriving within the threshold
     p10: float | None
+    p25: float | None
     p50: float | None
+    p75: float | None
     p90: float | None
     late30: float | None      # probability of 30+ min late
     canceled: float           # weighted share of trips canceled
@@ -156,7 +158,8 @@ def predict(route_legs: Sequence[Sequence], train: int, target: date,
         neff, p = 0.0, p_route
     return Prediction(
         train=train, dep_min=dep_min(latest) if latest else None, arr_min=arr_min(latest) if latest else None, on_time=p,
-        p10=weighted_quantile(delays, 0.1), p50=weighted_quantile(delays, 0.5), p90=weighted_quantile(delays, 0.9),
+        p10=weighted_quantile(delays, 0.1), p25=weighted_quantile(delays, 0.25), p50=weighted_quantile(delays, 0.5),
+        p75=weighted_quantile(delays, 0.75), p90=weighted_quantile(delays, 0.9),
         late30=(sum(w for a, w in delays if a >= 30) / sw) if sw else None,
         canceled=s_cancel / s_all if s_all else 0.0, trips=neff, route_only=route_only,
     )

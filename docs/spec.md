@@ -87,7 +87,8 @@ The page has two tabs: **Past performance** (the filters, charts and table above
 - the likely arrival time, and the range 8 in 10 trips fall within,
 - the chance of arriving 30+ minutes late, and of a cancellation when that isn't negligible,
 - a "why" line: that train's plain on-time rate over the last 8 weeks and over the same weeks a year earlier,
-- a "Best odds" mark on the train with the highest on-time chance.
+- a "Best odds" mark on the train with the highest on-time chance,
+- a small box plot of arrival minutes against the schedule (box = middle half of trips, line = 8 in 10, tick = most likely, green band = on time), on a scale shared by all of that day's trains and capped at +90 minutes (longer tails end in an arrow).
 
 A collapsible "How the prediction works" section on the tab explains the weights below in plain language, with example weights.
 

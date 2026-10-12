@@ -59,6 +59,7 @@ def test_recent_form_outweighs_old_form():
     recent_good = [leg(TUE + timedelta(days=7 * i), delay=2) for i in range(0, 9)]      # recent weeks: on time
     p = P.predict(old_bad + recent_good, 20, target)
     assert p.on_time > 0.6 and p.p50 == 2
+    assert p.p10 <= p.p25 <= p.p50 <= p.p75 <= p.p90
 
 
 def test_shrinks_toward_route_when_train_has_little_history():
