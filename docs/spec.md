@@ -77,13 +77,19 @@ Every filter, including direction and station, has its own **Reset** button next
 
 ### Trip planner
 
-"Plan a trip" sits above the filters and has its own controls: a travel date (today through one year ahead, picked on a calendar), a direction, and the other station. It lists every train expected that day with:
+The page has two tabs: **Past performance** (the filters, charts and table above; shown by default) and **Plan a trip**. Opening the page with `#plan` in the address goes straight to the planner.
+
+"Plan a trip" has its own controls: a travel date (today through one year ahead, picked on a calendar), a direction, and the other station. It lists every train expected that day with:
+
+- the expected travel time (scheduled departure to likely arrival, e.g. "2 hours and 43 minutes", with the scheduled time when they differ),
 
 - the chance of arriving on time (within the dashboard's "On time means within" setting; arrival at the destination),
 - the likely arrival time, and the range 8 in 10 trips fall within,
 - the chance of arriving 30+ minutes late, and of a cancellation when that isn't negligible,
 - a "why" line: that train's plain on-time rate over the last 8 weeks and over the same weeks a year earlier,
 - a "Best odds" mark on the train with the highest on-time chance.
+
+A collapsible "How the prediction works" section on the tab explains the weights below in plain language, with example weights.
 
 **Which trains:** from Amtrak's published GTFS timetable (`https://content.amtrak.com/content/gtfs/GTFS.zip`, about a year ahead), refreshed by the collect workflow each run. `python -m collector schedule` (`collector/schedule.py`) keeps only rail trips through CVS and saves them to `data/schedule.json`: each trip's train number, service dates and weekdays, and every stop's times. GTFS times are Eastern and count from the trip's service date, so they can pass 24:00; each stop also stores its offset from Eastern, and pickup/drop-off rules are respected. Alternate-schedule numbers 1000–1999 are folded onto the regular train (1151 runs as 151). A trip is offered for a travel date when the service date implied by its departure time from the boarding station runs that day. Thruway buses are excluded.
 
