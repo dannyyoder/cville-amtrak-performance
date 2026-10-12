@@ -93,7 +93,7 @@ table { border-collapse: collapse; width: 100%; font-size: 14px; }
 th, td { padding: 8px 10px; text-align: right; border-bottom: 1px solid var(--grid); white-space: nowrap; }
 th { font: 600 11px/1.2 var(--font-display); text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); cursor: pointer; user-select: none; }
 th[aria-sort="ascending"]::after { content: " ▲"; } th[aria-sort="descending"]::after { content: " ▼"; }
-th:first-child, td:first-child, th:nth-child(2), td:nth-child(2) { text-align: left; }
+th:first-child, td:first-child, th:nth-child(2), td:nth-child(2), th:nth-child(3), td:nth-child(3) { text-align: left; }
 td { font-variant-numeric: tabular-nums; }
 td.t { font-family: var(--font-data); font-size: 13px; }
 td .trn { font: 600 15px var(--font-data); }
@@ -188,11 +188,11 @@ td .trn { font: 600 15px var(--font-data); }
   </div>
 
   <section class="card">
-    <div><h2>By train</h2><p class="sub">Scheduled times are local to each station. Click a column to sort.</p></div>
+    <div><h2>By train</h2><p class="sub">One row per published schedule, since a train's times can differ by day. Delays are measured against each trip's own schedule. Times are local to each station. Click a column to sort.</p></div>
     <div class="tbl-wrap"><table id="tbl"></table></div>
   </section>
 
-  <p class="note" id="foot">Source: Amtrak Status Maps (asm.transitdocs.com), which records Amtrak's reported arrival and departure times. Delays use reported actual times only; trips whose times were never posted are left out of delay stats. Canceled trips are counted separately.</p>
+  <p class="note" id="foot">Source: Amtrak Status Maps (asm.transitdocs.com), which records Amtrak's reported arrival and departure times. Delays use Amtrak's reported actual times. Amtrak seldom posts an actual arrival at a train's last stop (for example New York for the Crescent), so there the final estimate is used once the train has left the stop before. Trips with no reported time are left out of delay stats. Canceled trips are counted separately.</p>
 </div>
 <div class="tip" id="tip" hidden></div>
 
@@ -252,7 +252,8 @@ td .trn { font: 600 15px var(--font-data); }
   const svgEl = (tag, attrs, text) => el(tag, { ...attrs, _svg: 1 }, text);
 
   // ---- leg accessors -----------------------------------------------
-  // row: [date, train, dir, cvs_min, cvs_delay, x_min, dur_min, x_delay, canceled]
+  // row: [date, train, dir, cvs_min, cvs_delay, x_min, dur_min, x_delay, canceled, est]
+  // est = 1 when x_delay is Amtrak's final estimate at a train's last stop
   const depMin = l => l[2] === 0 ? l[3] : l[5];          // scheduled departure (origin-local)
   const arrMin = l => l[2] === 0 ? l[5] : l[3];
   const arrDelay = l => l[2] === 0 ? l[7] : l[4];
@@ -289,10 +290,12 @@ td .trn { font: 600 15px var(--font-data); }
   }
   function stats(rows) {
     const live = rows.filter(l => !l[8]);
-    const ds = live.map(delayOf).filter(d => d != null);
+    const withDelay = live.filter(l => delayOf(l) != null);
+    const ds = withDelay.map(delayOf);
     const onTime = ds.filter(d => d <= state.thr).length;
+    const estimated = withDelay.filter(l => l[9] && (state.measure === "arr") === (l[2] === 0)).length;
     return {
-      trips: rows.length, canceled: rows.length - live.length, measured: ds.length, ds,
+      trips: rows.length, canceled: rows.length - live.length, measured: ds.length, ds, estimated,
       rate: ds.length ? (100 * onTime) / ds.length : null,
       median: quant(ds, 0.5), p90: quant(ds, 0.9),
       avg: ds.length ? ds.reduce((a, b) => a + b, 0) / ds.length : null,
@@ -351,7 +354,7 @@ td .trn { font: 600 15px var(--font-data); }
       .map(l => l[6] + arrDelay(l) - depDelay(l));
     const sched = quant(rows.map(l => l[6]), 0.5);
     const tiles = [
-      { k: "On time", v: pct(s.rate), cls: rateClass(s.rate), n: `${s.measured} trips with reported times` },
+      { k: "On time", v: pct(s.rate), cls: rateClass(s.rate), n: `${s.measured} trips with reported times` + (s.estimated ? ` (${s.estimated} use Amtrak's final estimate)` : "") },
       { k: "Median delay", v: s.median == null ? "–" : signed(s.median), unit: "min", n: s.avg == null ? "" : `Average ${signed(Math.round(s.avg))} min` },
       { k: "1 in 10 trips is later than", v: s.p90 == null ? "–" : signed(s.p90), unit: "min", n: "90th percentile" },
       { k: "Typical trip time", v: durs.length ? dur(quant(durs, 0.5)) : "–", n: sched == null ? "" : `Scheduled ${dur(sched)}` },
@@ -514,28 +517,61 @@ td .trn { font: 600 15px var(--font-data); }
   }
 
   // ---- table ----------------------------------------------------------
+  const fmtDays = set => {
+    const d = [...set].sort();
+    const key = d.join("");
+    if (key === "0123456") return "Daily";
+    if (key === "01234") return "Mon–Fri";
+    if (key === "56") return "Sat–Sun";
+    if (key === "012345") return "Mon–Sat";
+    return d.map(i => DOW[i]).join(" ");
+  };
   function renderTable(rows) {
-    const byTrain = new Map();
+    // One row per published schedule: train + scheduled departure + scheduled arrival.
+    // A train's timetable often differs by day (e.g. weekday vs weekend track work);
+    // schedules covering under 10% of a train's trips are folded into its most common one.
+    const groups = new Map();
     for (const l of rows) {
-      const k = `${l[1]}|${depMin(l)}`;           // same train, same timetable slot
-      if (!byTrain.has(k)) byTrain.set(k, []);
-      byTrain.get(k).push(l);
+      const k = `${l[1]}|${depMin(l)}|${arrMin(l)}`;
+      if (!groups.has(k)) groups.set(k, []);
+      groups.get(k).push(l);
     }
-    const data = [...byTrain.values()].map(ls => {
-      const s = stats(ls), f = ls[ls.length - 1];
-      const arrs = ls.filter(l => !l[8] && arrDelay(l) != null).map(l => arrMin(l) + arrDelay(l));
+    const perTrain = new Map();
+    for (const [k, ls] of groups) {
+      const n = ls[0][1];
+      if (!perTrain.has(n)) perTrain.set(n, []);
+      perTrain.get(n).push({ k, ls });
+    }
+    const merged = [];
+    for (const gs of perTrain.values()) {
+      const total = gs.reduce((a, g) => a + g.ls.length, 0);
+      gs.sort((a, b) => b.ls.length - a.ls.length);
+      const keep = gs.filter((g, i) => i === 0 || g.ls.length >= 0.1 * total);
+      for (const g of gs) {
+        if (keep.includes(g)) { merged.push({ ...g, folded: 0 }); continue; }
+        const main = merged.find(m => m.k === keep[0].k);
+        main.ls = main.ls.concat(g.ls);
+        main.folded += g.ls.length;
+      }
+    }
+    const data = merged.map(({ ls, k, folded }) => {
+      const s = stats(ls);
+      const [, dep, arr] = k.split("|").map(Number);
+      const arrDelays = ls.filter(l => !l[8] && arrDelay(l) != null).map(arrDelay);
+      const med = quant(arrDelays, 0.5);
       return {
-        train: f[1], name: index.trains[f[1]] || "", dep: depMin(f), arr: arrMin(f), trips: s.measured,
+        train: ls[0][1], name: index.trains[ls[0][1]] || "", dep, arr, trips: s.measured,
         rate: s.rate, median: s.median, p90: s.p90, worst: s.ds.length ? Math.max(...s.ds) : null,
-        typical: arrs.length ? quant(arrs, 0.5) : null, canceled: s.canceled,
-        days: [...new Set(ls.map(l => dowOf(l[0])))].sort().map(d => DOW[d][0] + DOW[d][1]).join(" "),
+        typical: med == null ? null : arr + med, canceled: s.canceled, folded,
+        days: fmtDays(new Set(ls.map(l => dowOf(l[0])))),
       };
     }).filter(r => r.trips || r.canceled);
     const cols = [
       { k: "train", t: "Train", f: r => { const s = el("span"); s.append(el("span", { class: "trn" }, r.train), document.createTextNode(" ")); return s; } },
       { k: "name", t: "Route", f: r => r.name },
+      { k: "days", t: "Days", f: r => r.days },
       { k: "dep", t: `Departs ${state.dir === 0 ? HOME : state.station}`, f: r => clock(r.dep), c: "t" },
-      { k: "arr", t: `Due ${state.dir === 0 ? state.station : HOME}`, f: r => clock(r.arr), c: "t" },
+      { k: "arr", t: `Due ${state.dir === 0 ? state.station : HOME}`, f: r => clock(r.arr) + (r.folded ? "*" : ""), c: "t" },
       { k: "typical", t: "Typical arrival", f: r => r.typical == null ? "–" : clock(r.typical), c: "t" },
       { k: "trips", t: "Trips", f: r => String(r.trips) },
       { k: "rate", t: "On time", f: r => { const s = el("span", { class: `pill ${rateClass(r.rate)}` }, pct(r.rate)); return s; } },
@@ -568,7 +604,7 @@ td .trn { font: 600 15px var(--font-data); }
         const td = el("td", c.c ? { class: c.c } : {});
         const v = c.f(r);
         typeof v === "string" ? (td.textContent = v) : td.append(v);
-        if (c.k === "train") td.title = `Runs: ${r.days}`;
+        if (c.k === "arr" && r.folded) td.title = `${r.folded} of these trips had a different scheduled time; each is still judged against its own schedule.`;
         row.append(td);
       }
       tbody.append(row);

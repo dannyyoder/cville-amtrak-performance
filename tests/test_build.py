@@ -9,7 +9,7 @@ from collector.build import build, legs_for_run, summarize
 def test_legs_into_cvs(crescent, stations):
     legs = legs_for_run(parse_run(crescent, stations.tz))
     # depart WAS 18:30 (on time) -> arrive CVS 20:47, 7 min late
-    assert legs["WAS"] == ["2026-10-10", 19, 1, 20 * 60 + 47, 7, 18 * 60 + 30, 137, 0, 0]
+    assert legs["WAS"] == ["2026-10-10", 19, 1, 20 * 60 + 47, 7, 18 * 60 + 30, 137, 0, 0, 0]
     assert legs["NYP"][:7] == ["2026-10-10", 19, 1, 1247, 7, 14 * 60, 407]
 
 
@@ -18,8 +18,18 @@ def test_legs_out_of_cvs_and_estimates_are_null(crescent, stations):
     lyh = legs["LYH"]
     assert lyh[2] == 0 and lyh[3] == 20 * 60 + 52 and lyh[4] == 9  # CVS departure 20:52, 9 late
     nol = legs["NOL"]
-    assert nol[7] is None and nol[8] == 1  # ESTIMATED arrival not used; canceled flagged
+    # terminal arrival is ESTIMATED and the train never departed PIC/SDL (still en route): not used
+    assert nol[7] is None and nol[9] == 0 and nol[8] == 1
     assert (nol[5], nol[6]) == (21 * 60 + 12, 1520)  # 21:12 Central the next day
+
+
+def test_terminal_final_estimate_used_once_train_left_previous_stop(crescent, stations):
+    rows = parse_run(crescent, stations.tz)
+    rows = [replace(r, dep_type="ACTUAL", dep_delay=50) if r.station == "SDL" else r for r in rows]
+    nol = legs_for_run(rows)["NOL"]
+    assert (nol[7], nol[9]) == (-60, 1)   # variance +3600 -> 60 min early, flagged as an estimate
+    lyh = legs_for_run(rows)["LYH"]
+    assert lyh[9] == 0                     # intermediate stops never use estimates
 
 
 def test_run_without_cvs_has_no_legs(crescent, stations):

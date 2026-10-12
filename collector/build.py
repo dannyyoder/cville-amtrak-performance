@@ -6,7 +6,7 @@ Output (in `out/`):
 - `summary.json`: compact recent stats for Home Assistant (WAS and NYP).
 
 A leg row is a list:
-  [date, train, dir, cvs_min, cvs_delay, x_min, dur_min, x_delay, canceled]
+  [date, train, dir, cvs_min, cvs_delay, x_min, dur_min, x_delay, canceled, est]
   date       CVS-local date of the scheduled CVS event (YYYY-MM-DD)
   dir        0 = from CVS (depart CVS, arrive X); 1 = to CVS (depart X, arrive CVS)
   cvs_min    scheduled CVS event, minutes after local midnight
@@ -15,7 +15,11 @@ A leg row is a list:
   dur_min    scheduled minutes between the two events
   x_delay    minutes late at X (arrival if dir 0, departure if dir 1), or null
   canceled   1 if either stop was canceled
-Delays are only filled from ACTUAL times; ESTIMATED ones are left null.
+  est        1 if x_delay is Amtrak's final estimate rather than an actual time
+Delays come from ACTUAL times, with one exception: Amtrak seldom posts an
+actual arrival at a train's last stop (over 90% of terminal arrivals in ASM stay
+ESTIMATED), so a terminal arrival's final estimate is used once the train has
+actually departed the stop before it. Other ESTIMATED times are left null.
 """
 from __future__ import annotations
 
@@ -56,6 +60,9 @@ def legs_for_run(stops: list[StopRow]) -> dict[str, list]:
         return {}
     i = home[0]
     cvs = stops[i]
+    last = len(stops) - 1
+    terminal_est = (last > 0 and stops[last].arr_type == "ESTIMATED"
+                    and stops[last].arr_delay is not None and stops[last - 1].dep_type == "ACTUAL")
     out = {}
     for j, x in enumerate(stops):
         if j == i or x.station == HOME:
@@ -63,10 +70,14 @@ def legs_for_run(stops: list[StopRow]) -> dict[str, list]:
         if j > i:  # CVS -> X
             t0, t1 = _sched(cvs, "dep"), _sched(x, "arr")
             cvs_delay, x_delay = _actual(cvs.dep_delay, cvs.dep_type), _actual(x.arr_delay, x.arr_type)
+            est = 1 if j == last and terminal_est else 0
+            if est:
+                x_delay = x.arr_delay
             direction = 0
         else:  # X -> CVS
             t0, t1 = _sched(x, "dep"), _sched(cvs, "arr")
             cvs_delay, x_delay = _actual(cvs.arr_delay, cvs.arr_type), _actual(x.dep_delay, x.dep_type)
+            est = 0
             direction = 1
         if t0 is None or t1 is None:
             continue
@@ -75,7 +86,7 @@ def legs_for_run(stops: list[StopRow]) -> dict[str, list]:
             cvs_t.date().isoformat(), cvs.train_num, direction,
             _minute(cvs_t), cvs_delay, _minute(x_t),
             round((t1 - t0).total_seconds() / 60), x_delay,
-            1 if (cvs.canceled or x.canceled) else 0,
+            1 if (cvs.canceled or x.canceled) else 0, est,
         ]
     return out
 
