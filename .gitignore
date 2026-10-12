@@ -7,3 +7,4 @@ apps/train_alerts/announced.json
 secrets.yaml
 _site/
 site/data/
+data/trains.json
