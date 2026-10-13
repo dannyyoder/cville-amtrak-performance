@@ -67,6 +67,7 @@ Every filter, including direction and station, has its own **Reset** button next
 ### Views
 
 - **KPI row:** on-time %, median and average delay, 90th-percentile delay, typical actual trip time vs. scheduled, and canceled trips.
+- **Delay by train:** one row per train with a curve of its minutes late (smoothed with a 5-minute kernel; taller = more trips arrived then) and a tick under it for every trip, on one scale shared by all trains (at least 30 minutes early to at most 120 late; longer delays are counted as "+N later"). An orange line marks the scheduled time and a ring the median. Trains with fewer than 15 trips in the filtered data show ticks only. Follows every filter, including arrival/departure.
 - **Charts:** delay distribution, on-time % by month, by day of week, and by departure hour.
 - **By-train table** (sortable; it also serves as the table view of the charts): scheduled departure and arrival, typical actual arrival, trips, on-time %, median, 90th percentile, worst delay, and cancellations.
 
