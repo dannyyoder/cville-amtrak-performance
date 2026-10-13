@@ -254,6 +254,7 @@ td .trn { font: 600 15px var(--font-data); }
           <li><b>Time of year</b> (weather, summer heat, holidays): trips within about a month of the same date in another year get a bonus of up to <b>+1</b>. The bonus falls to about +0.6 for trips a month off and +0.14 for two months off, and halves for each year back, so the same week last year still counts about 0.5.</li>
           <li><b>Day of week:</b> the same weekday counts fully (<b>×1</b>), another weekday (or the other weekend day) <b>×0.7</b>, and a weekday versus a weekend day <b>×0.49</b>.</li>
           <li><b>Time of day</b> is built in, because each train runs at its own scheduled time.</li>
+          <li><b>Weather:</b> not used. Typical seasonal weather is reflected through the time-of-year factor, but forecasts for your travel date are not, so a heat wave or storm on the day won't change the odds.</li>
           <li><b>Little history:</b> a train's odds are blended with the route's other trains as if they added <b>10 extra trips</b>, so a train with few trips doesn't swing to 0% or 100%. A train with no history at all gets the route's odds.</li>
         </ul>
         <div class="tbl-wrap">

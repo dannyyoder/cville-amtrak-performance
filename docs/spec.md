@@ -107,7 +107,7 @@ The on-time chance is the weighted share of trips on time, shrunk toward the who
 
 **Accuracy:** `python -m collector backtest` predicts every CVS ↔ WAS/NYP arrival in the last 120 days using only data from at least 7 days earlier. On 2026-06-14..2026-10-12 (1,486 trips) the Brier score was 0.188, against 0.201 for each train's plain one-year average and 0.245 for a single overall rate; it beat the plain average on all four routes, and predicted probabilities matched observed on-time rates closely. The starting constants were chosen from that backtest.
 
-**Factors the model uses:** the specific train and route, recency, time of year, day of week, time of day (through the train's scheduled time), and the route's other trains when a train has little history. Weather was tested (NOAA daily observations at ~33 stations along the routes; 95°F+ heat and 40 mph gusts cut on-time odds noticeably beyond the seasonal effect) but is not used in the planner.
+**Factors the model uses:** the specific train and route, recency, time of year, day of week, time of day (through the train's scheduled time), and the route's other trains when a train has little history. Weather was tested (NOAA daily observations at ~33 stations along the routes; 95°F+ heat and 40 mph gusts cut on-time odds noticeably beyond the seasonal effect) but is not used in the planner; the page's "How the prediction works" section says so.
 
 ### Validation loop
 
