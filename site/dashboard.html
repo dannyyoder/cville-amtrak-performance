@@ -195,10 +195,11 @@ td .trn { font: 600 15px var(--font-data); }
 .meter > span { display: block; height: 100%; border-radius: 3px; background: currentColor; }
 .trip-detail { font-size: 13px; color: var(--ink-2); display: grid; gap: 3px; min-width: 0; }
 .trip-detail b { color: var(--ink); font-weight: 600; font-variant-numeric: tabular-nums; }
-.spread-mini { display: grid; gap: 2px; margin-top: 4px; }
-.spread-mini .cap { font: 600 10px/1 var(--font-display); letter-spacing: 0.06em; text-transform: uppercase; color: var(--muted); }
+.spread-mini { display: grid; gap: 2px; margin-top: 6px; }
 .spread-mini svg { width: 100%; height: auto; display: block; overflow: visible; }
 .spread-mini svg text { font: 10px var(--font-data); fill: var(--muted); }
+.spread-mini svg text.due { font: 600 10px var(--font-body); fill: var(--ink-2); }
+.spread-mini svg text.lik { font: 600 11px var(--font-body); fill: var(--ink); }
 .plan-key { display: flex; flex-wrap: wrap; gap: 4px 16px; font-size: 12px; color: var(--ink-2); padding: 2px 2px 0; }
 .plan-key svg { width: auto; display: inline-block; vertical-align: -2px; margin-right: 5px; }
 .trip-why { grid-column: 1 / -1; font-size: 12px; color: var(--muted); border-top: 1px solid var(--grid); padding-top: 8px; }
@@ -1236,6 +1237,7 @@ td .trn { font: 600 15px var(--font-data); }
       p75: wQuantile(t.delays, 0.75), p90: wQuantile(t.delays, 0.9),
       late30: t.sw ? t.delays.filter(([a]) => a >= 30).reduce((s, [, w]) => s + w, 0) / t.sw : null,
       canceled: t.all ? t.cancel / t.all : 0, trips: neff, routeOnly,
+      delays: t.delays,                             // [minutes late, weight] pairs, for the arrival curve
     };
   }
   // Trains in Amtrak's published timetable (data/schedule.json, from GTFS) that carry a
@@ -1305,38 +1307,61 @@ td .trn { font: 600 15px var(--font-data); }
     if (!p.station || !index.stations.some(s => s.code === p.station)) p.station = "WAS";
     return p;
   }
-  // Small box plot of arrival minutes vs schedule, on a scale shared by every card
-  // so trains can be compared: line = 8 in 10 trips, box = middle half, tick = most likely.
-  function miniSpread(x, lo, hi, thr) {
-    const W = 300, H = 38, L = 6, R = 6, cy = 11;
+  // Arrival curve: smoothed, weighted distribution of minutes late (6-minute kernel),
+  // drawn on a scale shared by every card so trains can be compared. Taller = more likely.
+  const CURVE_STEP = 2, CURVE_BW = 6;
+  function arrivalDensity(delays, lo, hi) {
+    const total = delays.reduce((s, [, w]) => s + w, 0), out = [];
+    for (let g = lo; g <= hi; g += CURVE_STEP) {
+      let d = 0;
+      for (const [a, w] of delays) { const z = (g - a) / CURVE_BW; if (z > -5 && z < 5) d += w * Math.exp(-0.5 * z * z); }
+      out.push([g, total ? d / total : 0]);
+    }
+    return out;
+  }
+  function miniCurve(x, curve, lo, hi, maxD) {
+    const W = 300, H = 62, L = 4, R = 6, base = 44, top = 16;
     const sx = v => L + ((Math.max(lo, Math.min(hi, v)) - lo) / (hi - lo)) * (W - L - R);
+    const sy = d => base - (d / maxD) * (base - top);
     const svg = svgEl("svg", { viewBox: `0 0 ${W} ${H}`, role: "img",
-      "aria-label": `Arrival compared with schedule: most likely ${x.p50 === 0 ? "on time" : signed(x.p50) + " min"}; middle half ${signed(x.p25)} to ${signed(x.p75)} min; 8 in 10 between ${signed(x.p10)} and ${signed(x.p90)} min` });
-    svg.append(svgEl("rect", { x: sx(0), y: 1, width: Math.max(0, sx(thr) - sx(0)), height: 20, fill: "var(--good-wash)" }));
-    svg.append(svgEl("line", { x1: sx(0), x2: sx(0), y1: 0, y2: 22, stroke: "var(--axis)", "stroke-width": 1 }));
-    svg.append(svgEl("line", { x1: sx(x.p10), x2: sx(x.p90), y1: cy, y2: cy, stroke: "var(--series-1)", "stroke-width": 2, "stroke-linecap": "round" }));
-    if (x.p90 > hi) svg.append(svgEl("path", { d: `M${W - R - 5},${cy - 4} L${W - R + 1},${cy} L${W - R - 5},${cy + 4}`, fill: "none", stroke: "var(--series-1)", "stroke-width": 2, "stroke-linecap": "round", "stroke-linejoin": "round" }));
-    svg.append(svgEl("rect", { x: sx(x.p25), y: cy - 6, width: Math.max(3, sx(x.p75) - sx(x.p25)), height: 12, rx: 3,
-      fill: "var(--series-1-soft)", stroke: "var(--series-1)", "stroke-width": 1.5 }));
-    svg.append(svgEl("line", { x1: sx(x.p50), x2: sx(x.p50), y1: cy - 8, y2: cy + 8, stroke: "var(--ink)", "stroke-width": 3, "stroke-linecap": "round" }));
-    const step = hi - lo > 120 ? 60 : 30;
-    const ticks = [0, ...Array.from({ length: 12 }, (_, i) => (i - 2) * step).filter(v => v !== 0 && v > lo && v <= hi)];
-    for (const v of ticks) svg.append(svgEl("text", { x: sx(v), y: H - 2, "text-anchor": "middle" }, v === 0 ? "sched." : signed(v)));
+      "aria-label": `Arrival curve: due ${clock(x.arr)}; most likely ${clock(x.arr + x.p50)}; 8 in 10 trips between ${clock(x.arr + x.p10)} and ${clock(x.arr + x.p90)}` });
+    for (const v of [-60, -30, 30, 60, 90]) {
+      if (v < lo || v > hi) continue;
+      svg.append(svgEl("line", { x1: sx(v), x2: sx(v), y1: top - 4, y2: base, stroke: "var(--grid)", "stroke-width": 1 }));
+      svg.append(svgEl("text", { x: sx(v), y: base + 12, "text-anchor": "middle" }, signed(v)));
+    }
+    svg.append(svgEl("line", { x1: L, x2: W - R, y1: base, y2: base, stroke: "var(--axis)", "stroke-width": 1 }));
+    const pts = curve.map(([g, d]) => [sx(g), sy(d)]);
+    svg.append(svgEl("path", { d: `M${pts[0][0]},${base} ` + pts.map(([px, py]) => `L${px.toFixed(1)},${py.toFixed(1)}`).join(" ") + ` L${pts[pts.length - 1][0]},${base} Z`,
+      fill: "var(--series-1-soft)", "fill-opacity": 0.55 }));
+    svg.append(svgEl("path", { d: pts.map(([px, py], i) => `${i ? "L" : "M"}${px.toFixed(1)},${py.toFixed(1)}`).join(" "),
+      fill: "none", stroke: "var(--series-1)", "stroke-width": 2, "stroke-linejoin": "round" }));
+    // scheduled arrival: vertical line, labeled with the time
+    svg.append(svgEl("line", { x1: sx(0), x2: sx(0), y1: top - 4, y2: base + 2, stroke: "var(--ink-2)", "stroke-width": 1.5 }));
+    const due = svgEl("text", { x: sx(0), y: base + 12, "text-anchor": "middle", class: "due" }, `due ${clock(x.arr)}`);
+    svg.append(due);
+    // most likely arrival: ring on the curve, labeled above
+    const near = curve.reduce((b, c) => Math.abs(c[0] - x.p50) < Math.abs(b[0] - x.p50) ? c : b, curve[0]);
+    const mx = sx(x.p50), my = sy(near[1]);
+    svg.append(svgEl("circle", { cx: mx, cy: my, r: 4, fill: "var(--surface)", stroke: "var(--ink)", "stroke-width": 2 }));
+    const lab = x.p50 === 0 ? "likely on schedule" : `${clock(x.arr + x.p50)} likely`;
+    const anchor = mx < 60 ? "start" : mx > W - 60 ? "end" : "middle";
+    svg.append(svgEl("text", { x: mx, y: Math.min(my - 7, top - 6), "text-anchor": anchor, class: "lik" }, lab));
+    if (x.p90 > hi) svg.append(svgEl("text", { x: W - R, y: base - 4, "text-anchor": "end" }, "→ later"));
     const wrap = el("div", { class: "spread-mini" });
-    wrap.append(el("span", { class: "cap" }, "Arrival vs schedule (min)"), svg);
-    const tipText = `middle half ${clock(x.arr + x.p25)}–${clock(x.arr + x.p75)} · 8 in 10 ${clock(x.arr + x.p10)}–${clock(x.arr + x.p90)}`;
-    const show = e => showTip(e, `${clock(x.arr + x.p50)} likely`, ` · ${tipText}`);
+    wrap.append(svg);
+    const show = e => showTip(e, `${clock(x.arr + x.p50)} likely`, ` · due ${clock(x.arr)} · 8 in 10 arrive ${clock(x.arr + x.p10)}–${clock(x.arr + x.p90)}`);
     svg.addEventListener("pointermove", show); svg.addEventListener("pointerleave", hideTip);
     return wrap;
   }
-  function planKey(thr) {
+  function planKey() {
     const key = el("div", { class: "plan-key" });
     const item = (draw, text) => { const s = el("span"); const g = svgEl("svg", { width: 22, height: 12, viewBox: "0 0 22 12", "aria-hidden": "true" }); draw(g); s.append(g, document.createTextNode(text)); return s; };
     key.append(
-      item(g => g.append(svgEl("rect", { x: 0, y: 0, width: 22, height: 12, rx: 2, fill: "var(--good-wash)" })), `On time (0–${thr} min)`),
-      item(g => g.append(svgEl("line", { x1: 11, x2: 11, y1: 0, y2: 12, stroke: "var(--ink)", "stroke-width": 3, "stroke-linecap": "round" })), "Most likely"),
-      item(g => g.append(svgEl("rect", { x: 1, y: 2, width: 20, height: 8, rx: 3, fill: "var(--series-1-soft)", stroke: "var(--series-1)", "stroke-width": 1.5 })), "Middle half of trips"),
-      item(g => g.append(svgEl("line", { x1: 1, x2: 21, y1: 6, y2: 6, stroke: "var(--series-1)", "stroke-width": 2, "stroke-linecap": "round" })), "8 in 10 trips"));
+      item(g => g.append(svgEl("path", { d: "M1,11 C6,11 7,2 11,2 C15,2 16,11 21,11 Z", fill: "var(--series-1-soft)", stroke: "var(--series-1)", "stroke-width": 1.5 })), "Taller = more likely arrival time"),
+      item(g => g.append(svgEl("line", { x1: 11, x2: 11, y1: 0, y2: 12, stroke: "var(--ink-2)", "stroke-width": 1.5 })), "Scheduled arrival"),
+      item(g => g.append(svgEl("circle", { cx: 11, cy: 6, r: 4, fill: "var(--surface)", stroke: "var(--ink)", "stroke-width": 2 })), "Most likely arrival"),
+      el("span", {}, "Minutes against the schedule, same scale for every train"));
     return key;
   }
 
@@ -1441,8 +1466,10 @@ td .trn { font: 600 15px var(--font-data); }
     const best = Math.max(...preds.map(x => x.onTime));
     const list = el("div", { class: "plan-list" });
     const withDelays = preds.filter(x => x.p10 != null);
-    const lo = Math.max(-60, Math.min(-15, ...withDelays.map(x => Math.floor(x.p10 / 15) * 15)));
-    const hi = Math.min(90, Math.max(45, thr + 15, ...withDelays.map(x => Math.ceil(x.p90 / 15) * 15)));   // longer tails get an arrow
+    const lo = Math.max(-60, Math.min(-30, ...withDelays.map(x => Math.floor(x.p10 / 30) * 30)));
+    const hi = 90;                                                    // longer tails get "→ later"
+    const curves = new Map(withDelays.map(x => [x, arrivalDensity(x.delays, lo, hi)]));
+    const maxD = Math.max(1e-9, ...[...curves.values()].flatMap(c => c.map(([, d]) => d)));
     const lastYear = addDays(p.date, -365);
     for (const x of preds) {
       const row = el("div", { class: `trip${x.onTime === best && preds.length > 1 ? " best" : ""}` });
@@ -1460,7 +1487,7 @@ td .trn { font: 600 15px var(--font-data); }
       const meter = el("div", { class: "meter", role: "img", "aria-label": `${pct_}% chance on time` });
       meter.append(el("span", { style: `width:${pct_}%` }));
       odds.append(big, meter);
-      if (x.p10 != null) odds.append(miniSpread(x, lo, hi, thr));
+      if (curves.has(x)) odds.append(miniCurve(x, curves.get(x), lo, hi, maxD));
       const det = el("div", { class: "trip-detail" });
       const line = (label, value) => { const d = el("span"); d.append(document.createTextNode(label), el("b", {}, value)); return d; };
       const travel = line("Expected travel time ", durText(x.dur + (x.p50 ?? 0)));
@@ -1484,7 +1511,7 @@ td .trn { font: 600 15px var(--font-data); }
       if (!x.routeOnly) row.append(why);
       list.append(row);
     }
-    out.replaceChildren(list, planKey(thr));
+    out.replaceChildren(list, planKey());
     $("planNote").textContent = `Odds, not a forecast: they come from this train's trips over the last 15 months, with recent weeks and the same time of year counting most. ` +
       (fromTimetable
         ? `Trains and times are from Amtrak's published timetable (feed of ${fmtDate(timetable.feed_version.replace(/(\d{4})(\d\d)(\d\d)/, "$1-$2-$3"))}), which can still change before you travel.`

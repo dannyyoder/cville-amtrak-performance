@@ -88,7 +88,7 @@ The page has two tabs: **Past performance** (the filters, charts and table above
 - the chance of arriving 30+ minutes late, and of a cancellation when that isn't negligible,
 - a "why" line: that train's plain on-time rate over the last 8 weeks and over the same weeks a year earlier,
 - a "Best odds" mark on the train with the highest on-time chance,
-- a small box plot of arrival minutes against the schedule (box = middle half of trips, line = 8 in 10, tick = most likely, green band = on time), on a scale shared by all of that day's trains and capped at +90 minutes (longer tails end in an arrow).
+- a small arrival curve: the weighted distribution of minutes late, smoothed with a 6-minute kernel (taller = more likely), with a vertical line labeled with the scheduled arrival time and a ring at the most likely arrival. All of that day's trains share one scale (from at least 30 minutes early to 90 minutes late; longer tails are noted "→ later").
 
 A collapsible "How the prediction works" section on the tab explains the weights below in plain language, with example weights.
 
