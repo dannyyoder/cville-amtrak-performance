@@ -10,7 +10,7 @@ Personal project: collect on-time data for every Amtrak train stopping at Charlo
 - The dashboard's trip planner is a JavaScript copy of `predict.py` and `schedule.options`; change both together and re-check they agree.
 - `data/stops/YYYY/YYYY-MM.csv`: collected data (committed). `data/stations.json`: station names and time zones. Known train numbers are derived from the CSVs.
 - `site/dashboard.html`: the dashboard page, written as a body fragment (claude.ai artifact format). `collector site` wraps it into a full `index.html` for Pages.
-- `.github/workflows/`: collect (twice daily; also logs and scores predictions), tune (monthly retune), backfill (manual), tests.
+- `.github/workflows/`: collect (daily; also logs and scores predictions), tune (monthly retune), backfill (manual), tests.
 
 ## Rules
 - Python 3.11+ stdlib only at runtime; pytest for tests. Datetimes are timezone-aware; scheduled times are stored in each station's local time.

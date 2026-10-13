@@ -2,8 +2,7 @@ name: Collect and publish
 
 on:
   schedule:
-    - cron: "17 11 * * *"   # ~7 AM Eastern
-    - cron: "17 23 * * *"   # ~7 PM Eastern
+    - cron: "17 11 * * *"   # once a day, ~7 AM Eastern
   workflow_dispatch:
     inputs:
       probe:
@@ -33,9 +32,9 @@ jobs:
         with: { python-version: "3.12" }
       - name: Fetch the last 4 days of runs
         run: |
-          # Probe for new train numbers on manual request and every Monday morning run.
+          # Probe for new train numbers on manual request and on Monday runs.
           PROBE=""
-          if [ "${{ inputs.probe }}" = "true" ] || { [ "$(date -u +%u)" = "1" ] && [ "$(date -u +%H)" -lt 12 ]; }; then PROBE="--probe"; fi
+          if [ "${{ inputs.probe }}" = "true" ] || [ "$(date -u +%u)" = "1" ]; then PROBE="--probe"; fi
           python -m collector update --days 4 $PROBE
       - name: Refresh Amtrak's published timetable (GTFS)
         # A failed download keeps yesterday's timetable rather than blocking data collection.

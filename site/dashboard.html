@@ -1393,7 +1393,7 @@ td .trn { font: 600 15px var(--font-data); }
     accuracyShown = true;
     const body = $("accBody");
     try { accuracy = await loadJSON("data/validation.json"); }
-    catch { body.replaceChildren(el("p", {}, "The accuracy report isn't available yet; it's produced by the twice-daily update.")); return; }
+    catch { body.replaceChildren(el("p", {}, "The accuracy report isn't available yet; it's produced by the daily update.")); return; }
     const v = accuracy, r = v.replay || {}, live = v.live || {};
     const fmt = x => x == null ? "–" : x.toFixed(3);
     const parts = [];

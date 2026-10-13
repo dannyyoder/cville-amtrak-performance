@@ -1,6 +1,6 @@
 # Charlottesville Amtrak Performance
 
-Tracks how late Amtrak trains run at Charlottesville (CVS). A GitHub Actions job collects reported arrival and departure times twice a day for every train that stops at CVS. The times come from [Amtrak Status Maps](https://asm.transitdocs.com) and are stored as CSV under `data/`. A static dashboard summarizes delays between CVS and any other station on those trains, such as Washington, New York, Lynchburg, or Atlanta. You can filter by train, weekday or weekend, day of week, departure time, and date range. A "Plan a trip" panel predicts, for any future date and route, how likely each train that day is to arrive on time.
+Tracks how late Amtrak trains run at Charlottesville (CVS). A GitHub Actions job collects reported arrival and departure times once a day for every train that stops at CVS. The times come from [Amtrak Status Maps](https://asm.transitdocs.com) and are stored as CSV under `data/`. A static dashboard summarizes delays between CVS and any other station on those trains, such as Washington, New York, Lynchburg, or Atlanta. You can filter by train, weekday or weekend, day of week, departure time, and date range. A "Plan a trip" panel predicts, for any future date and route, how likely each train that day is to arrive on time.
 
 ## Running it
 
@@ -19,7 +19,7 @@ python -m collector tune                            # retune the model weights (
 
 ## Workflows
 
-- **Collect and publish** runs at about 7 AM and 7 PM Eastern. It fetches recent runs and Amtrak's latest timetable, logs the trip planner's predictions and scores past ones, commits `data/`, and redeploys the dashboard to GitHub Pages.
+- **Collect and publish** runs once a day, at about 7 AM Eastern. It fetches recent runs and Amtrak's latest timetable, logs the trip planner's predictions and scores past ones, commits `data/`, and redeploys the dashboard to GitHub Pages.
 - **Retune trip planner** runs monthly. It re-searches the model's weights and keeps new ones only if they beat the current settings on recent trips.
 - **Backfill history** is run by hand with a start and end date. Run it about one year at a time; each run stops after roughly 5 hours and logs where to resume.
 - **Tests** runs pytest.

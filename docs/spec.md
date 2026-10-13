@@ -20,7 +20,7 @@ The dashboard also has to be viewable inside Home Assistant.
 | Topic | Decision |
 |---|---|
 | Data source | Amtrak Status Maps backend (`asm-backend.transitdocs.com`), which keeps history back to mid-2017. Amtraker v3 is used only for station metadata and spotting live trains. |
-| Collector | Python 3.11+ stdlib, run by GitHub Actions twice a day (about 7 AM and 7 PM Eastern). Each run re-fetches the last 4 origin dates, so long-distance trains finish and estimates firm up. |
+| Collector | Python 3.11+ stdlib, run by GitHub Actions once a day (about 7 AM Eastern). Each run re-fetches the last 4 origin dates, so long-distance trains finish and estimates firm up. |
 | Storage | CSV in the repo: `data/stops/YYYY/YYYY-MM.csv`, one row per stop per run, for every run that stops at CVS. |
 | History | One-time backfill through the `Backfill history` workflow (manual run) or `python -m collector backfill`. |
 | Dashboard | One static page (`site/dashboard.html`) that loads JSON built from the CSVs. Served by GitHub Pages; also publishable as a claude.ai artifact. |
