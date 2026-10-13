@@ -41,6 +41,12 @@ jobs:
         # A failed download keeps yesterday's timetable rather than blocking data collection.
         continue-on-error: true
         run: python -m collector schedule
+      - name: Log trip-planner predictions and score past ones
+        # The validation loop: never block data collection if it fails.
+        continue-on-error: true
+        run: |
+          python -m collector predictions
+          python -m collector validate
       - name: Commit data
         run: |
           git config user.name "github-actions[bot]"

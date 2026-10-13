@@ -12,11 +12,15 @@ python -m collector site --out _site                # build the dashboard + data
 python -m http.server -d _site                      # view at http://localhost:8000
 python -m collector schedule                        # refresh Amtrak's timetable (GTFS) for the trip planner
 python -m collector backtest                        # check the trip planner's accuracy on recent trips
+python -m collector predictions                     # log today's planner predictions (validation loop)
+python -m collector validate                        # score predictions against what happened -> data/validation.json
+python -m collector tune                            # retune the model weights (monthly workflow)
 ```
 
 ## Workflows
 
-- **Collect and publish** runs at about 7 AM and 7 PM Eastern. It fetches recent runs and Amtrak's latest timetable, commits `data/`, and redeploys the dashboard to GitHub Pages.
+- **Collect and publish** runs at about 7 AM and 7 PM Eastern. It fetches recent runs and Amtrak's latest timetable, logs the trip planner's predictions and scores past ones, commits `data/`, and redeploys the dashboard to GitHub Pages.
+- **Retune trip planner** runs monthly. It re-searches the model's weights and keeps new ones only if they beat the current settings on recent trips.
 - **Backfill history** is run by hand with a start and end date. Run it about one year at a time; each run stops after roughly 5 hours and logs where to resume.
 - **Tests** runs pytest.
 

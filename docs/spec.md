@@ -104,7 +104,17 @@ For dates past the end of the timetable, the planner falls back to history: a tr
 
 The on-time chance is the weighted share of trips on time, shrunk toward the whole route's weighted share by 10 pseudo-trips (so a train with little history leans on the others). Delay percentiles and the 30+ minute share come from the same weights; cancellation share counts canceled trips with the same weights. For travel dates far ahead, recency weights fade and the same season last year dominates.
 
-**Accuracy:** `python -m collector backtest` predicts every CVS ↔ WAS/NYP arrival in the last 120 days using only data from at least 7 days earlier. On 2026-06-14..2026-10-12 (1,486 trips) the Brier score was 0.188, against 0.201 for each train's plain one-year average and 0.245 for a single overall rate; it beat the plain average on all four routes, and predicted probabilities matched observed on-time rates closely. The constants were chosen from that backtest.
+**Accuracy:** `python -m collector backtest` predicts every CVS ↔ WAS/NYP arrival in the last 120 days using only data from at least 7 days earlier. On 2026-06-14..2026-10-12 (1,486 trips) the Brier score was 0.188, against 0.201 for each train's plain one-year average and 0.245 for a single overall rate; it beat the plain average on all four routes, and predicted probabilities matched observed on-time rates closely. The starting constants were chosen from that backtest.
+
+**Factors the model uses:** the specific train and route, recency, time of year, day of week, time of day (through the train's scheduled time), and the route's other trains when a train has little history. Weather was tested (NOAA daily observations at ~33 stations along the routes; 95°F+ heat and 40 mph gusts cut on-time odds noticeably beyond the seasonal effect) but is not used in the planner.
+
+### Validation loop
+
+`collector/validate.py`; results in `data/validation.json` and the planner's "How accurate is it?" section.
+
+1. **Log** (`python -m collector predictions`, each collect run): for CVS↔WAS and CVS↔NYP in both directions, the planner's prediction for every train scheduled 1, 3, 7, 14 and 28 days ahead, plus a baseline (that train's plain on-time share over the past year), the 8-in-10 range, and the model version. Rows go to `data/predictions/YYYY.csv`, once per prediction date, travel date, route and train.
+2. **Score** (`python -m collector validate`, each collect run): once trips run, predictions are joined with actual arrivals (on time = within 15 minutes) and summarised: Brier score against the baseline, mean predicted vs actual, share of arrivals inside the 8-in-10 range, calibration by probability band, and breakdowns by lead time, route and month. The same scoring runs on a replay of the last 180 days (predictions made 7 days ahead from the data available then), so there is a report before live logs mature.
+3. **Retune** (`python -m collector tune`, monthly workflow "Retune trip planner"): a coordinate search over the half-life, season bonus and spread, day-of-week factor and shrinkage, choosing on trips 31–120 days old and confirming on the last 30 days. New settings are adopted only if they beat the current ones on both (by at least 0.0005 on the first), and saved in `data/model.json`, which the Python model and the dashboard both read; every decision is appended to the file's history.
 
 ## 5. Error handling
 

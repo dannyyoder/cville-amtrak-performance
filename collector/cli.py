@@ -1,16 +1,17 @@
-"""Command line: `python -m collector {update,discover,backfill,schedule,build,site,backtest}`."""
+"""Command line: `python -m collector {update,discover,backfill,schedule,build,site,backtest,predictions,validate,tune}`."""
 from __future__ import annotations
 
 import argparse
+import json
 import logging
 import sys
 import time
-from datetime import date, datetime, timedelta
+from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any, Callable, Iterable
 from zoneinfo import ZoneInfo
 
-from . import predict, schedule, storage
+from . import predict, schedule, storage, validate
 from .asm import AsmClient, FetchError, StopRow, fetch_json, parse_run
 from .build import HOME, _group_runs, build, legs_for_run
 from .stations import Stations
@@ -182,9 +183,11 @@ def cmd_schedule(c: Collector, args) -> None:
 
 
 def _copy_schedule(c: Collector, out: Path) -> None:
-    src = c.data_dir / "schedule.json"
-    if src.exists():
-        (out / "schedule.json").write_text(src.read_text())
+    """Copy the timetable, model settings and scorecard into the site's data folder."""
+    for name in ("schedule.json", "model.json", "validation.json"):
+        src = c.data_dir / name
+        if src.exists():
+            (out / name).write_text(src.read_text())
 
 
 def cmd_build(c: Collector, args) -> None:
@@ -214,13 +217,72 @@ def cmd_site(c: Collector, args) -> None:
     log.info("site written to %s", out)
 
 
-def cmd_backtest(c: Collector, args) -> None:
-    """Check the trip planner model: predict recent arrivals using only older data."""
+def _route_legs(c: Collector, stations: Iterable[str]) -> dict[tuple[str, int], list]:
+    stations = set(stations)
     legs: dict[tuple[str, int], list] = {}
     for stops in _group_runs(storage.iter_all(c.stops_dir)).values():
         for code, leg in legs_for_run(stops).items():
-            if code in args.stations:
+            if code in stations:
                 legs.setdefault((code, leg[2]), []).append(leg)
+    return legs
+
+
+def _main_routes(c: Collector) -> dict[tuple[str, int], list]:
+    legs = _route_legs(c, {s for s, _ in validate.ROUTES})
+    return {k: legs.get(k, []) for k in validate.ROUTES}
+
+
+def cmd_predictions(c: Collector, args) -> None:
+    """Log today's planner predictions (validation loop step 1)."""
+    legs = _main_routes(c)
+    history_end = max(d for ls in legs.values() for _, d in predict._dated(ls))
+    made_on = datetime.now(EASTERN).date()
+    sched = schedule.load(c.data_dir / "schedule.json")
+    tag = validate.model_tag(predict.load_params(c.data_dir / "model.json"))
+    rows = []
+    for (station, direction), ls in legs.items():
+        rows += validate.predictions_for(ls, sched, station, direction, made_on, history_end, tag)
+    n = validate.append_log(c.data_dir / "predictions", rows)
+    log.info("predictions: logged %d new (of %d) for %s, model %s", n, len(rows), made_on, tag)
+
+
+def cmd_validate(c: Collector, args) -> None:
+    """Score logged and replayed predictions against what happened (step 2)."""
+    legs = _main_routes(c)
+    actual = validate.outcomes(legs)
+    last = max(d for ls in legs.values() for _, d in predict._dated(ls))
+    model = predict.load_params(c.data_dir / "model.json")
+    out = {
+        "generated_at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
+        "on_time_minutes": validate.ON_TIME,
+        "model": {"version": (model or {}).get("version", 0), "params": predict.params(),
+                  "updated": (model or {}).get("updated"), "last_checked": (model or {}).get("last_checked")},
+        "live": validate.score(validate.read_log(c.data_dir / "predictions"), actual),
+        "replay": validate.score(validate.replay(legs, last - timedelta(days=args.replay_days), last), actual),
+        "replay_days": args.replay_days,
+    }
+    (c.data_dir / "validation.json").write_text(json.dumps(out, indent=1) + "\n")
+    r, l = out["replay"], out["live"]
+    log.info("validate: replay %s trips Brier %s (baseline %s); live %s trips scored",
+             r.get("trips"), r.get("brier"), r.get("baseline_brier"), l.get("trips"))
+
+
+def cmd_tune(c: Collector, args) -> None:
+    """Monthly retune of the model weights (step 3)."""
+    path = c.data_dir / "model.json"
+    current = predict.load_params(path)
+    legs = _main_routes(c)
+    today = max(d for ls in legs.values() for _, d in predict._dated(ls)) + timedelta(days=1)
+    model, d = validate.tune(legs, today, current, log=lambda m: log.info(m))
+    validate.save_model(model, path)
+    log.info("tune: %s (select %s -> %s, confirm %s -> %s)", "adopted new settings" if d["adopted"] else "kept current settings",
+             d["select"]["current_brier"], d["select"]["challenger_brier"], d["confirm"]["current_brier"], d["confirm"]["challenger_brier"])
+
+
+def cmd_backtest(c: Collector, args) -> None:
+    """Check the trip planner model: predict recent arrivals using only older data."""
+    predict.load_params(c.data_dir / "model.json")
+    legs = _route_legs(c, args.stations)
     last = max(predict.trip_date(l) for ls in legs.values() for l in ls)
     test_from = last - timedelta(days=args.days)
     total = model = base = 0.0
@@ -259,6 +321,10 @@ def main(argv: list[str] | None = None) -> int:
     w.add_argument("--out", default=str(ROOT / "_site"))
     g = sub.add_parser("schedule", help="download Amtrak's GTFS timetable for trains through CVS")
     g.add_argument("--url", default=schedule.GTFS_URL)
+    sub.add_parser("predictions", help="log today's trip-planner predictions for the main routes")
+    v = sub.add_parser("validate", help="score logged and replayed predictions into data/validation.json")
+    v.add_argument("--replay-days", type=int, default=180)
+    sub.add_parser("tune", help="monthly: retune the model weights; keep a challenger only if it wins")
     t = sub.add_parser("backtest", help="score the trip planner model on recent trips")
     t.add_argument("--days", type=int, default=120, help="test on the last N days")
     t.add_argument("--horizon", type=int, default=7, help="predict this many days ahead")
@@ -267,7 +333,8 @@ def main(argv: list[str] | None = None) -> int:
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
     c = Collector(Path(args.data), delay=args.delay)
     {"update": cmd_update, "discover": cmd_discover, "backfill": cmd_backfill, "build": cmd_build, "site": cmd_site,
-     "schedule": cmd_schedule, "backtest": cmd_backtest}[args.cmd](c, args)
+     "schedule": cmd_schedule, "backtest": cmd_backtest,
+     "predictions": cmd_predictions, "validate": cmd_validate, "tune": cmd_tune}[args.cmd](c, args)
     if c.failures:
         log.warning("%d fetches failed", c.failures)
     return 0

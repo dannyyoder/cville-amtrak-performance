@@ -15,12 +15,15 @@ past trip of that train on that route gets a weight:
 Only trips within WINDOW_DAYS of the travel date count. The prediction is the
 weighted on-time share, shrunk toward the whole route's weighted share by
 SHRINK pseudo-trips, plus weighted delay percentiles and cancellation share.
-The constants came from backtesting ~1,500 CVS<->WAS/NYP trips (Jun-Oct 2026);
-`python -m collector backtest` re-runs that check. site/dashboard.html carries
-a JavaScript copy of this model, which must stay in step with this file.
+The constants below are defaults from backtesting ~1,500 CVS<->WAS/NYP trips
+(Jun-Oct 2026). `python -m collector tune` re-checks them monthly and, when a
+better set wins on recent trips, saves it to data/model.json, which both this
+module (load_params) and the dashboard read. site/dashboard.html carries a
+JavaScript copy of this model, which must stay in step with this file.
 """
 from __future__ import annotations
 
+import json
 import math
 from dataclasses import dataclass
 from datetime import date, timedelta
@@ -33,6 +36,29 @@ DOW_WEIGHT = 0.7
 WINDOW_DAYS = 455
 SHRINK = 10.0
 OPTION_LOOKBACK = 56          # a train is an option if it ran that weekday in the last 8 weeks
+TUNABLE = ("HALF_LIFE", "SEASON", "SEASON_SIGMA", "DOW_WEIGHT", "WINDOW_DAYS", "SHRINK")
+
+
+def params() -> dict[str, float]:
+    return {k: globals()[k] for k in TUNABLE}
+
+
+def configure(values: dict) -> None:
+    """Set model constants (only the TUNABLE names; others are ignored)."""
+    for k, v in values.items():
+        if k in TUNABLE:
+            globals()[k] = float(v)
+
+
+def load_params(path) -> dict | None:
+    """Apply data/model.json if it exists; returns its contents."""
+    try:
+        with open(path) as f:
+            model = json.load(f)
+    except (OSError, ValueError):
+        return None
+    configure(model.get("params", {}))
+    return model
 
 
 def trip_date(leg: Sequence) -> date:
@@ -103,14 +129,23 @@ class Prediction:
     route_only: bool = False  # no history for this train: based on the route's other trains
 
 
-def _usable(legs: Iterable[Sequence], target: date, history_end: date) -> list[tuple[Sequence, date]]:
+_DATED: dict[int, tuple[Sequence, int, list[tuple[Sequence, date]]]] = {}
+
+
+def _dated(legs: Sequence[Sequence]) -> list[tuple[Sequence, date]]:
+    """(leg, trip_date) pairs, cached per list so repeated predictions stay fast."""
+    hit = _DATED.get(id(legs))
+    if hit and hit[0] is legs and hit[1] == len(legs):
+        return hit[2]
+    pairs = [(leg, trip_date(leg)) for leg in legs]
+    _DATED[id(legs)] = (legs, len(legs), pairs)
+    return pairs
+
+
+def _usable(legs: Sequence[Sequence], target: date, history_end: date) -> list[tuple[Sequence, date]]:
     lo = target - timedelta(days=WINDOW_DAYS)
-    out = []
-    for leg in legs:
-        d = trip_date(leg)
-        if lo <= d <= history_end and d < target:
-            out.append((leg, d))
-    return out
+    end = min(history_end, target - timedelta(days=1))
+    return [(leg, d) for leg, d in _dated(legs) if lo <= d <= end]
 
 
 def predict(route_legs: Sequence[Sequence], train: int, target: date,
