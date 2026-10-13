@@ -1,0 +1,48 @@
+{
+ "version": 0,
+ "params": {
+  "HALF_LIFE": 30.0,
+  "SEASON": 1.0,
+  "SEASON_SIGMA": 30.0,
+  "DOW_WEIGHT": 0.7,
+  "WINDOW_DAYS": 455,
+  "SHRINK": 10.0
+ },
+ "history": [
+  {
+   "date": "2026-10-13",
+   "adopted": false,
+   "current": {
+    "HALF_LIFE": 30.0,
+    "SEASON": 1.0,
+    "SEASON_SIGMA": 30.0,
+    "DOW_WEIGHT": 0.7,
+    "WINDOW_DAYS": 455,
+    "SHRINK": 10.0
+   },
+   "challenger": {
+    "HALF_LIFE": 20.0,
+    "SEASON": 1.0,
+    "SEASON_SIGMA": 30.0,
+    "DOW_WEIGHT": 0.7,
+    "WINDOW_DAYS": 455,
+    "SHRINK": 3.0
+   },
+   "select": {
+    "from": "2026-06-15",
+    "to": "2026-09-12",
+    "trips": 1111,
+    "current_brier": 0.1927,
+    "challenger_brier": 0.1921
+   },
+   "confirm": {
+    "from": "2026-09-13",
+    "to": "2026-10-12",
+    "trips": 361,
+    "current_brier": 0.1728,
+    "challenger_brier": 0.1731
+   }
+  }
+ ],
+ "last_checked": "2026-10-13"
+}
