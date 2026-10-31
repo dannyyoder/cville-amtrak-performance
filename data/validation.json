@@ -1,5 +1,5 @@
 {
- "generated_at": "2026-10-30T17:02:47+00:00",
+ "generated_at": "2026-10-31T16:07:36+00:00",
  "on_time_minutes": 15,
  "model": {
   "version": 0,
@@ -15,30 +15,30 @@
   "last_checked": "2026-10-13"
  },
  "live": {
-  "trips": 137,
-  "brier": 0.1794,
-  "baseline_brier": 0.1766,
-  "predicted": 0.656,
-  "actual": 0.62,
-  "range_hit": 0.891,
+  "trips": 177,
+  "brier": 0.1648,
+  "baseline_brier": 0.1654,
+  "predicted": 0.652,
+  "actual": 0.661,
+  "range_hit": 0.893,
   "calibration": [
    {
     "bin": "20-30%",
-    "trips": 4,
-    "predicted": 0.263,
-    "actual": 0.25
+    "trips": 8,
+    "predicted": 0.266,
+    "actual": 0.125
    },
    {
     "bin": "30-40%",
-    "trips": 10,
-    "predicted": 0.351,
-    "actual": 0.2
+    "trips": 14,
+    "predicted": 0.358,
+    "actual": 0.143
    },
    {
     "bin": "40-50%",
-    "trips": 39,
+    "trips": 47,
     "predicted": 0.416,
-    "actual": 0.41
+    "actual": 0.511
    },
    {
     "bin": "60-70%",
@@ -48,109 +48,109 @@
    },
    {
     "bin": "70-80%",
-    "trips": 30,
-    "predicted": 0.756,
-    "actual": 0.8
+    "trips": 43,
+    "predicted": 0.754,
+    "actual": 0.86
    },
    {
     "bin": "80-90%",
-    "trips": 34,
+    "trips": 41,
     "predicted": 0.838,
-    "actual": 0.765
+    "actual": 0.805
    },
    {
     "bin": "90-100%",
-    "trips": 16,
+    "trips": 20,
     "predicted": 0.97,
     "actual": 1.0
    }
   ],
   "by_lead": {
    "1": {
-    "trips": 51,
-    "brier": 0.1937,
-    "baseline_brier": 0.1882,
-    "predicted": 0.662,
-    "actual": 0.588,
-    "range_hit": 0.863
+    "trips": 61,
+    "brier": 0.1805,
+    "baseline_brier": 0.1781,
+    "predicted": 0.657,
+    "actual": 0.623,
+    "range_hit": 0.869
    },
    "3": {
-    "trips": 36,
-    "brier": 0.2009,
-    "baseline_brier": 0.1954,
-    "predicted": 0.651,
-    "actual": 0.583,
-    "range_hit": 0.889
+    "trips": 46,
+    "brier": 0.1825,
+    "baseline_brier": 0.1806,
+    "predicted": 0.647,
+    "actual": 0.63,
+    "range_hit": 0.891
    },
    "7": {
-    "trips": 25,
-    "brier": 0.1509,
-    "baseline_brier": 0.152,
-    "predicted": 0.651,
-    "actual": 0.68,
-    "range_hit": 0.96
+    "trips": 35,
+    "brier": 0.1419,
+    "baseline_brier": 0.1452,
+    "predicted": 0.646,
+    "actual": 0.714,
+    "range_hit": 0.943
    },
    "14": {
-    "trips": 25,
-    "brier": 0.1479,
-    "baseline_brier": 0.1505,
-    "predicted": 0.659,
-    "actual": 0.68,
-    "range_hit": 0.88
+    "trips": 35,
+    "brier": 0.1374,
+    "baseline_brier": 0.1437,
+    "predicted": 0.654,
+    "actual": 0.714,
+    "range_hit": 0.886
    }
   },
   "by_route": {
    "CVS->NYP": {
-    "trips": 38,
-    "brier": 0.0862,
-    "baseline_brier": 0.087,
-    "predicted": 0.829,
-    "actual": 0.842,
-    "range_hit": 0.737
+    "trips": 50,
+    "brier": 0.0786,
+    "baseline_brier": 0.0776,
+    "predicted": 0.807,
+    "actual": 0.8,
+    "range_hit": 0.72
    },
    "CVS->WAS": {
-    "trips": 45,
-    "brier": 0.1991,
-    "baseline_brier": 0.1849,
-    "predicted": 0.697,
-    "actual": 0.6,
-    "range_hit": 0.889
+    "trips": 57,
+    "brier": 0.169,
+    "baseline_brier": 0.1613,
+    "predicted": 0.679,
+    "actual": 0.614,
+    "range_hit": 0.912
    },
    "NYP->CVS": {
-    "trips": 27,
-    "brier": 0.2284,
-    "baseline_brier": 0.2327,
-    "predicted": 0.498,
-    "actual": 0.481,
+    "trips": 35,
+    "brier": 0.2235,
+    "baseline_brier": 0.2316,
+    "predicted": 0.516,
+    "actual": 0.6,
     "range_hit": 1.0
    },
    "WAS->CVS": {
-    "trips": 27,
-    "brier": 0.2288,
-    "baseline_brier": 0.2327,
-    "predicted": 0.504,
-    "actual": 0.481,
+    "trips": 35,
+    "brier": 0.2227,
+    "baseline_brier": 0.2316,
+    "predicted": 0.522,
+    "actual": 0.6,
     "range_hit": 1.0
    }
   },
   "by_month": {
    "2026-10": {
-    "trips": 137,
-    "brier": 0.1794,
-    "baseline_brier": 0.1766,
-    "predicted": 0.656,
-    "actual": 0.62,
-    "range_hit": 0.891
+    "trips": 177,
+    "brier": 0.1648,
+    "baseline_brier": 0.1654,
+    "predicted": 0.652,
+    "actual": 0.661,
+    "range_hit": 0.893
    }
   },
   "first": "2026-10-13",
-  "last": "2026-10-29"
+  "last": "2026-10-30"
  },
  "replay": {
   "trips": 2081,
-  "brier": 0.1941,
-  "baseline_brier": 0.206,
-  "predicted": 0.588,
+  "brier": 0.1939,
+  "baseline_brier": 0.2056,
+  "predicted": 0.587,
   "actual": 0.558,
   "range_hit": 0.802,
   "calibration": [
@@ -162,9 +162,9 @@
    },
    {
     "bin": "20-30%",
-    "trips": 210,
+    "trips": 211,
     "predicted": 0.262,
-    "actual": 0.138
+    "actual": 0.137
    },
    {
     "bin": "30-40%",
@@ -174,27 +174,27 @@
    },
    {
     "bin": "40-50%",
-    "trips": 146,
+    "trips": 147,
     "predicted": 0.443,
-    "actual": 0.377
+    "actual": 0.381
    },
    {
     "bin": "50-60%",
-    "trips": 368,
+    "trips": 367,
     "predicted": 0.558,
-    "actual": 0.516
+    "actual": 0.518
    },
    {
     "bin": "60-70%",
-    "trips": 499,
+    "trips": 498,
     "predicted": 0.646,
     "actual": 0.631
    },
    {
     "bin": "70-80%",
-    "trips": 367,
+    "trips": 366,
     "predicted": 0.748,
-    "actual": 0.738
+    "actual": 0.74
    },
    {
     "bin": "80-90%",
@@ -204,17 +204,17 @@
    },
    {
     "bin": "90-100%",
-    "trips": 82,
+    "trips": 83,
     "predicted": 0.936,
-    "actual": 0.963
+    "actual": 0.964
    }
   ],
   "by_lead": {
    "7": {
     "trips": 2081,
-    "brier": 0.1941,
-    "baseline_brier": 0.206,
-    "predicted": 0.588,
+    "brier": 0.1939,
+    "baseline_brier": 0.2056,
+    "predicted": 0.587,
     "actual": 0.558,
     "range_hit": 0.802
    }
@@ -222,45 +222,45 @@
   "by_route": {
    "CVS->NYP": {
     "trips": 558,
-    "brier": 0.1481,
-    "baseline_brier": 0.1513,
+    "brier": 0.1476,
+    "baseline_brier": 0.1499,
     "predicted": 0.721,
-    "actual": 0.715,
-    "range_hit": 0.794
+    "actual": 0.713,
+    "range_hit": 0.792
    },
    "CVS->WAS": {
     "trips": 566,
-    "brier": 0.2087,
-    "baseline_brier": 0.2206,
-    "predicted": 0.54,
+    "brier": 0.2079,
+    "baseline_brier": 0.2198,
+    "predicted": 0.539,
     "actual": 0.512,
     "range_hit": 0.788
    },
    "NYP->CVS": {
     "trips": 395,
-    "brier": 0.2188,
-    "baseline_brier": 0.2396,
-    "predicted": 0.488,
-    "actual": 0.435,
+    "brier": 0.2191,
+    "baseline_brier": 0.24,
+    "predicted": 0.487,
+    "actual": 0.438,
     "range_hit": 0.815
    },
    "WAS->CVS": {
     "trips": 562,
-    "brier": 0.2075,
-    "baseline_brier": 0.2221,
+    "brier": 0.2079,
+    "baseline_brier": 0.2225,
     "predicted": 0.573,
-    "actual": 0.534,
+    "actual": 0.536,
     "range_hit": 0.817
    }
   },
   "by_month": {
    "2026-05": {
-    "trips": 358,
-    "brier": 0.2117,
-    "baseline_brier": 0.2153,
-    "predicted": 0.624,
-    "actual": 0.556,
-    "range_hit": 0.807
+    "trips": 343,
+    "brier": 0.2133,
+    "baseline_brier": 0.2175,
+    "predicted": 0.622,
+    "actual": 0.551,
+    "range_hit": 0.799
    },
    "2026-06": {
     "trips": 378,
@@ -295,16 +295,16 @@
     "range_hit": 0.813
    },
    "2026-10": {
-    "trips": 210,
-    "brier": 0.1838,
-    "baseline_brier": 0.1749,
-    "predicted": 0.655,
-    "actual": 0.667,
-    "range_hit": 0.848
+    "trips": 225,
+    "brier": 0.1815,
+    "baseline_brier": 0.1706,
+    "predicted": 0.653,
+    "actual": 0.671,
+    "range_hit": 0.853
    }
   },
-  "first": "2026-05-03",
-  "last": "2026-10-29"
+  "first": "2026-05-04",
+  "last": "2026-10-30"
  },
  "replay_days": 180
 }
