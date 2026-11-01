@@ -1,12 +1,12 @@
 {
- "version": 0,
+ "version": 1,
  "params": {
-  "HALF_LIFE": 30.0,
+  "HALF_LIFE": 20.0,
   "SEASON": 1.0,
   "SEASON_SIGMA": 30.0,
-  "DOW_WEIGHT": 0.7,
-  "WINDOW_DAYS": 455,
-  "SHRINK": 10.0
+  "DOW_WEIGHT": 0.5,
+  "WINDOW_DAYS": 455.0,
+  "SHRINK": 3.0
  },
  "history": [
   {
@@ -42,7 +42,42 @@
     "current_brier": 0.1728,
     "challenger_brier": 0.1731
    }
+  },
+  {
+   "date": "2026-11-01",
+   "adopted": true,
+   "current": {
+    "HALF_LIFE": 30.0,
+    "SEASON": 1.0,
+    "SEASON_SIGMA": 30.0,
+    "DOW_WEIGHT": 0.7,
+    "WINDOW_DAYS": 455.0,
+    "SHRINK": 10.0
+   },
+   "challenger": {
+    "HALF_LIFE": 20.0,
+    "SEASON": 1.0,
+    "SEASON_SIGMA": 30.0,
+    "DOW_WEIGHT": 0.5,
+    "WINDOW_DAYS": 455.0,
+    "SHRINK": 3.0
+   },
+   "select": {
+    "from": "2026-07-04",
+    "to": "2026-10-01",
+    "trips": 1105,
+    "current_brier": 0.1866,
+    "challenger_brier": 0.186
+   },
+   "confirm": {
+    "from": "2026-10-02",
+    "to": "2026-10-31",
+    "trips": 214,
+    "current_brier": 0.1855,
+    "challenger_brier": 0.1798
+   }
   }
  ],
- "last_checked": "2026-10-13"
+ "last_checked": "2026-11-01",
+ "updated": "2026-11-01"
 }
